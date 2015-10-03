@@ -38,14 +38,14 @@ class UsbThread(QObject):
 
     def __init__(self, pool):
         QObject.__init__(self)
-        self.name = pool.Name
-        self.serials = []
+        serials = []
         for i in range(int(pool.DualPort) + 1):
             settings = pool.Group[i].Proxy.getSettingsDict(pool.Group[i])
             port = settings.pop("port", 0)
-            self.serials.append(serial.serial_for_url(port, **settings))
-        Console.PrintLog("{} opening port {}... done\n".format(pool.Name, [x.port for x in self.serials]))            
-        self.eol = pool.Proxy.getCharEndOfLine(pool)
+            serials.append(serial.serial_for_url(port, **settings))
+        Console.PrintLog("{} opening port {}... done\n".format(pool.Name, [x.port for x in serials]))            
+        pool.Serials = serials
+        self.pool = pool        
         self.reader = Thread(target=self.run_reader)
         self.writer = Thread(target=self.run_writer)
         self.reader.setDaemon(True)
@@ -53,37 +53,38 @@ class UsbThread(QObject):
         self._data = Queue()
         self.reader.start()
         self.writer.start()
-        pool.Serials = self.serials
         
     @Slot(unicode)
     def on_output(self, data):
-        self._data.put(data + self.eol)
+        self._data.put(data + self.pool.Proxy.getCharEndOfLine(self.pool))
 
     def run_reader(self):
         """loop and copy serial -> console"""
         try:
-            s = self.serials[0]
-            sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=self.eol)
-            while s.isOpen():
+            s = self.pool.Serials[0]
+            sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=self.pool.Proxy.getCharEndOfLine(self.pool))
+            while self.pool.Open:
                 data = sio.readline()
                 if len(data):
                     self.input.emit(data)
         except Exception as e:
             Console.PrintError("Error occurred in reader Process: {}\n".format(e))
             return
-        Console.PrintLog("{} reader thread stop on port {}... done\n".format(self.name, s.port))            
+        s.close()
+        Console.PrintLog("{} reader thread stop on port {}... done\n".format(self.pool.Name, s.port))            
         
     def run_writer(self):
         """loop and copy console -> serial"""
         try:
-            s = self.serials[-1]
+            s = self.pool.Serials[-1]
             sio = io.TextIOWrapper(io.BufferedRWPair(s, s))
-            while s.isOpen():
+            while self.pool.Open:
                 while not self._data.empty():
                     sio.write(self._data.get())
                     sio.flush()
         except Exception as e:
             Console.PrintError("Error occurred in writer Process: {}\n".format(e))
             return
-        Console.PrintLog("{} writer thread stop on port {}... done\n".format(self.name, s.port))            
+        s.close()
+        Console.PrintLog("{} writer thread stop on port {}... done\n".format(self.pool.Name, s.port))            
 

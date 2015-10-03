@@ -27,13 +27,13 @@ from __future__ import unicode_literals
 import FreeCAD, FreeCADGui
 
 
-class CommandDualPort:
+class CommandRefresh:
 
     def GetResources(self):
-        return {'Pixmap'  : b"icons:Usb-Port.xpm",
-                'MenuText': b"USB DualPort",
-                'Accel'   : b"U, P",
-                'ToolTip' : b"USB DualPort"}
+        return {b'Pixmap'  : b"icons:Usb-Port.xpm",
+                b'MenuText': b"Refresh",
+                b'Accel'   : b"U, P",
+                b'ToolTip' : b"Refresh"}
 
     def IsActive(self):
         return not FreeCAD.ActiveDocument is None
@@ -43,57 +43,32 @@ class CommandDualPort:
         if len(selection) == 0:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
-        pool = selection[0]
+        obj = selection[0]
         from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
-           not isinstance(pool.Proxy, UsbPool.Pool):
-            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
-            return 
-        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-while len(pool.Group) < int(pool.DualPort) + 1:
-    FreeCADGui.runCommand("Usb_Port")'''
-        FreeCADGui.doCommand(code)
-        
-
-class CommandRefreshPort:
-
-    def GetResources(self):
-        return {'Pixmap'  : b"icons:Usb-Port.xpm",
-                'MenuText': b"Refresh port",
-                'Accel'   : b"U, P",
-                'ToolTip' : b"Refresh port"}
-
-    def IsActive(self):
-        return not FreeCAD.ActiveDocument is None
-
-    def Activated(self):
-        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(selection) == 0:
-            FreeCAD.Console.PrintError("Selection has no elements!\n")
-            return
-        port = selection[0]
         from UsbScripts import UsbPort
-        if not port.isDerivedFrom("App::FeaturePython") or \
-           not isinstance(port.Proxy, UsbPort.Port):
-            FreeCAD.Console.PrintError("Selection is not a Port!\n")
+        if obj.isDerivedFrom("App::DocumentObjectGroupPython") and \
+           isinstance(obj.Proxy, UsbPool.Pool):
+            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+for port in pool.Group:
+    port.Update = ["Port", "Baudrate"]'''
+        elif obj.isDerivedFrom("App::FeaturePython") and \
+             isinstance(obj.Proxy, UsbPort.Port):
+            code = '''port = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+port.Update = ["Port", "Baudrate"]'''
+        else:
+            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
             return
-        code = '''port = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-index = port.Proxy.getPortsIndex(port.Ports)
-port.update = False
-port.Ports = port.Proxy.getPorts(port.Details)
-if index != -1: 
-    port.Ports = index
-port.update = True'''
         FreeCADGui.doCommand(code)
+        FreeCAD.ActiveDocument.recompute()
 
 
 class CommandTerminal:
 
     def GetResources(self):
-        return {'Pixmap'  : b"icons:Usb-Terminal.xpm",
-                'MenuText': b"Connect/Disconnect Terminal",
-                'Accel'   : b"U, P",
-                'ToolTip' : b"Connect/Disconnect Terminal"}
+        return {b'Pixmap'  : b"icons:Usb-Terminal.xpm",
+                b'MenuText': b"Connect/Disconnect Terminal",
+                b'Accel'   : b"U, P",
+                b'ToolTip' : b"Connect/Disconnect Terminal"}
 
     def IsActive(self):
         return not FreeCAD.ActiveDocument is None
@@ -110,30 +85,18 @@ class CommandTerminal:
             FreeCAD.Console.PrintError("Selection is not a Pool!\n")
             return
         if pool.Serials is None:
-            code = '''from PySide import QtCore
-from UsbScripts import UsbThread
-from UsbScripts import TerminalDock
-pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-thread = UsbThread.UsbThread(pool)
-dock = TerminalDock.TerminalDock(thread, pool)
-FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)'''
+            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+pool.Open = True'''
         else:      
-            code = '''from PySide import QtGui
-pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]            
-mw = FreeCADGui.getMainWindow()
-dock = mw.findChild(QtGui.QDockWidget, pool.Document.Name+"-"+pool.Name)
-dock.setParent(None)
-dock.close()            
-for i in range(len(pool.Serials)):
-    pool.Serials[i].close()
-pool.Serials = None'''            
+            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]            
+pool.Open = False'''            
         FreeCADGui.doCommand(code)
-
+        FreeCAD.ActiveDocument.recompute()
+        
 
 if FreeCAD.GuiUp: 
     # register the FreeCAD command
-    FreeCADGui.addCommand('Usb_DualPort', CommandDualPort())
-    FreeCADGui.addCommand('Usb_RefreshPort', CommandRefreshPort())    
+    FreeCADGui.addCommand('Usb_Refresh', CommandRefresh())        
     FreeCADGui.addCommand('Usb_Terminal', CommandTerminal())    
 
 FreeCAD.Console.PrintLog("Loading UsbCommand... done\n")

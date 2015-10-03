@@ -22,7 +22,7 @@
 #*                                                                         *
 #***************************************************************************
 """ Gui workbench initialization """
-#from __future__ import unicode_literals
+from __future__ import unicode_literals
 
 
 class UsbWorkbench(Workbench):
@@ -59,19 +59,20 @@ class UsbWorkbench(Workbench):
         from UsbScripts import UsbPool
         from UsbScripts import UsbPort
         from UsbScripts import UsbCommand
-        commands = ["Usb_Pool", "Usb_RefreshPort","Usb_Terminal"]        
+        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Terminal"]        
         # Add commands to menu and toolbar
         self.appendToolbar("Commands for Usb", commands)
         self.appendMenu(["USB"], commands)
+        Log('Loading USB workbench... done\n')
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        App.Console.PrintLog("USB workbench activated\n")
+        Msg("USB workbench activated\n")
 
     def Deactivated(self):
-        App.Console.PrintLog("USB workbench deactivated\n")
+        Msg("USB workbench deactivated\n")
 
 Gui.addWorkbench(UsbWorkbench())
 

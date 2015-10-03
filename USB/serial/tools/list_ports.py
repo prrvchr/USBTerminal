@@ -4,8 +4,9 @@
 # this is a wrapper module for different platform implementations of the
 # port enumeration feature
 #
-# (C) 2011-2013 Chris Liechti <cliechti@gmx.net>
-# this is distributed under a free software license, see license.txt
+# (C) 2011-2015 Chris Liechti <cliechti@gmx.net>
+#
+# SPDX-License-Identifier:    BSD-3-Clause
 
 """\
 This module will provide a function called comports that returns an
@@ -16,22 +17,23 @@ Additionally a grep function is supplied that can be used to search for ports
 based on their descriptions or hardware ID.
 """
 
-import sys, os, re
+import sys
+import os
+import re
 
 # chose an implementation, depending on os
 #~ if sys.platform == 'cli':
 #~ else:
-import os
-# chose an implementation, depending on os
-if os.name == 'nt': #sys.platform == 'win32':
-    from serial.tools.list_ports_windows import *
+if os.name == 'nt':  # sys.platform == 'win32':
+    from serial.tools.list_ports_windows import comports
 elif os.name == 'posix':
-    from serial.tools.list_ports_posix import *
+    from serial.tools.list_ports_posix import comports
 #~ elif os.name == 'java':
 else:
     raise ImportError("Sorry: no implementation for your platform ('%s') available" % (os.name,))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 
 def grep(regexp):
     """\
@@ -47,55 +49,52 @@ def grep(regexp):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def main():
-    import optparse
+    import argparse
 
-    parser = optparse.OptionParser(
-        usage = "%prog [options] [<regexp>]",
-        description = "Miniterm - A simple terminal program for the serial port."
-    )
+    parser = argparse.ArgumentParser(description='Serial port enumeration')
 
-    parser.add_option("--debug",
-            help="print debug messages and tracebacks (development mode)",
-            dest="debug",
-            default=False,
-            action='store_true')
+    parser.add_argument(
+            'regexp',
+            nargs='?',
+            help='only show ports that match this regex')
 
-    parser.add_option("-v", "--verbose",
-            help="show more messages (can be given multiple times)",
-            dest="verbose",
-            default=1,
-            action='count')
+    parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='show more messages')
 
-    parser.add_option("-q", "--quiet",
-            help="suppress all messages",
-            dest="verbose",
-            action='store_const',
-            const=0)
+    parser.add_argument(
+            '-q', '--quiet',
+            action='store_true',
+            help='suppress all messages')
 
-    (options, args) = parser.parse_args()
+    parser.add_argument(
+            '-n',
+            type=int,
+            help='only output the N-th entry')
 
+    args = parser.parse_args()
 
     hits = 0
     # get iteraror w/ or w/o filter
-    if args:
-        if len(args) > 1:
-            parser.error('more than one regexp not supported')
-        print "Filtered list with regexp: %r" % (args[0],)
-        iterator = sorted(grep(args[0]))
+    if args.regexp:
+        sys.stderr.write("Filtered list with regexp: %r\n" % (args.regexp,))
+        iterator = sorted(grep(args.regexp))
     else:
         iterator = sorted(comports())
     # list them
-    for port, desc, hwid in iterator:
-        print("%-20s" % (port,))
-        if options.verbose > 1:
-            print("    desc: %s" % (desc,))
-            print("    hwid: %s" % (hwid,))
+    for n, (port, desc, hwid) in enumerate(iterator, 1):
+        if args.n is None or args.n == n:
+            sys.stdout.write("{:20}\n".format(port))
+            if args.verbose:
+                sys.stdout.write("    desc: {}\n".format(desc))
+                sys.stdout.write("    hwid: {}\n".format(hwid))
         hits += 1
-    if options.verbose:
+    if not args.quiet:
         if hits:
-            print("%d ports found" % (hits,))
+            sys.stderr.write("{} ports found\n".format(hits))
         else:
-            print("no ports found")
+            sys.stderr.write("no ports found\n")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # test

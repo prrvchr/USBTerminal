@@ -31,16 +31,16 @@ from serial.tools import list_ports
 class Port:
 
     def __init__(self, obj):
+        """ Internal property for management of data update """
+        obj.addProperty("App::PropertyStringList", "Update", "Base", "", 2, True, True)
         """ PySerial discovered port tools """
-        obj.addProperty("App::PropertyEnumeration", "Details", "Discovered ports", "Ports detail")
+        obj.addProperty("App::PropertyEnumeration", "Details", "Discovered ports", "Discovered ports view details (refresh too!)")
         obj.Details = self.getDetails()
         obj.Details = b"Detail"
-        obj.addProperty("App::PropertyEnumeration", "Ports", "Discovered ports", "Ports discovered")
-        obj.Ports = self.getPorts(obj.Details)
-        obj.addProperty("App::PropertyBool", "update", "Discovered ports", "Need update PySerial port", 2, True, True)
-        obj.update = True
+        obj.addProperty("App::PropertyEnumeration", "Ports", "Discovered ports", "Discovered port (need refresh?)")
+        obj.Ports = self.getPorts(obj)
         """ PySerial port property """
-        obj.addProperty("App::PropertyEnumeration", "Baudrate", "Port", "Set baud rate, default 115200")
+        obj.addProperty("App::PropertyEnumeration", "Baudrate", "Port", "Set baud rate (default 115200)")
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = b"115200"
         obj.addProperty("App::PropertyEnumeration", "ByteSize", "Port", "ByteSize")
@@ -48,8 +48,8 @@ class Port:
         obj.ByteSize = b"8"
         obj.addProperty("App::PropertyBool", "DsrDtr", "Port", "set initial DTR line state")
         obj.DsrDtr = False
-        obj.addProperty("App::PropertyFloat", "InterCharTimeout", "Port", "InterCharTimeout")
-        obj.InterCharTimeout = -1
+        obj.addProperty("App::PropertyFloat", "InterByteTimeout", "Port", "InterByteTimeout")
+        obj.InterByteTimeout = -1
         obj.addProperty("App::PropertyEnumeration", "Parity", "Port", "set parity (None, Even, Odd, Space, Mark) default N")
         obj.Parity = map(str, serial.Serial().PARITIES)
         obj.Parity = b"N"
@@ -59,7 +59,7 @@ class Port:
         obj.addProperty("App::PropertyEnumeration", "StopBits", "Port", "StopBits")
         obj.StopBits = map(str, serial.Serial().STOPBITS)
         obj.StopBits = b"1"
-        obj.addProperty("App::PropertyFloat", "Timeout", "Port", "Timeout")
+        obj.addProperty("App::PropertyFloat", "Timeout", "Port", "Set a read timeout (negative value wait forever)")
         obj.Timeout = 0.05
         obj.addProperty("App::PropertyFloat", "WriteTimeout", "Port", "WriteTimeout")
         obj.WriteTimeout = 0.05
@@ -69,24 +69,35 @@ class Port:
 
     def getDetails(self):
         return [b"Detail", b"Standart", b"VID:PID"]
-    def getDetailsIndex(self, detail):
-        return self.getDetails().index(detail)
+    def getDetailsIndex(self, obj):
+        return self.getDetails().index(obj.Details)
     
-    def getPorts(self, detail):
-        return [x[self.getDetails().index(detail)] for x in list_ports.comports()]
-    def getPortsIndex(self, port):
+    def getPorts(self, obj):
+        return [x[self.getDetailsIndex(obj)] for x in list_ports.comports()]
+    def getPortsIndex(self, obj):
         #Get the index of the port:
-        ports = list_ports.grep("(^{}$)".format(port))
         try:
-            i = list_ports.comports().index(ports.next())
-        except (StopIteration, ValueError) as e:
+            ports = list_ports.grep("^{}$".format(obj.Ports))
+            i = self.getPorts(obj).index(ports.next()[self.getDetailsIndex(obj)])
+        except (AssertionError, StopIteration, ValueError) as e:
             return -1
         try:
             ports.next()
         except StopIteration as e:
             return i
         return -1
+    
+    def refreshPorts(self, obj):
+        index = self.getPortsIndex(obj)
+        obj.Ports = self.getPorts(obj)
+        if index != -1: 
+            obj.Ports = index
 
+    def refreshBaudrate(self, obj):
+        baudrate = obj.Baudrate
+        obj.Baudrate = map(str, serial.Serial().BAUDRATES)
+        obj.Baudrate = baudrate
+            
     def getSettingsDict(self, obj):
         return {b"port" : b"{}".format(obj.Port),
                 b"baudrate" : int(obj.Baudrate),
@@ -97,18 +108,27 @@ class Port:
                 b"rtscts" : obj.RtsCts,
                 b"dsrdtr" : obj.DsrDtr,
                 b"timeout" : None if obj.Timeout < 0 else obj.Timeout,
-                b"writeTimeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
-                b"interCharTimeout" : None if obj.InterCharTimeout < 0 else obj.InterCharTimeout}
+                b"write_timeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
+                b"inter_byte_timeout" : None if obj.InterByteTimeout < 0 else obj.InterByteTimeout}
 
     def execute(self, obj):
-        pass
+        if not obj.Update:
+            return
+        for name in obj.Update:
+            if name == "Port":
+                self.refreshPorts(obj)
+            if name == "Baudrate":
+                self.refreshBaudrate(obj)                
+        obj.Update = []
 
     def onChanged(self, obj, prop):
         if prop == "Details":
-            FreeCADGui.runCommand("Usb_RefreshPort")
+            obj.Update = ["Port"]
+            self.refreshPorts(obj)
+            obj.Update = []
         if prop == "Ports":
-            if obj.update and self.getPortsIndex(obj.Ports) != -1:
-                if self.getDetailsIndex(obj.Details) == 0:
+            if not obj.Update and self.getPortsIndex(obj) != -1:
+                if self.getDetailsIndex(obj) == 0:
                     obj.Port = obj.Ports
                 else:
                     obj.Port = "hwgrep://" + obj.Ports
@@ -147,15 +167,25 @@ class _ViewProviderPort:
 class CommandUsbPort:
 
     def GetResources(self):
-        return {'Pixmap'  : b"icons:Usb-Port.xpm",
-                'MenuText': b"New Port",
-                'Accel'   : b"U, P",
-                'ToolTip' : b"New Port"}
+        return {b'Pixmap'  : b"icons:Usb-Port.xpm",
+                b'MenuText': b"New Port",
+                b'Accel'   : b"U, P",
+                b'ToolTip' : b"New Port"}
 
     def IsActive(self):
         return not FreeCAD.ActiveDocument is None
 
     def Activated(self):
+        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+        if len(selection) == 0:
+            FreeCAD.Console.PrintError("Selection has no elements!\n")
+            return
+        pool = selection[0]
+        from UsbScripts import UsbPool
+        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
+           not isinstance(pool.Proxy, UsbPool.Pool):
+            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
+            return
         FreeCAD.ActiveDocument.openTransaction(b"New Port")
         FreeCADGui.addModule(b"UsbScripts.UsbPort")
         code = '''from UsbScripts import UsbPort

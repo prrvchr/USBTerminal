@@ -8,8 +8,9 @@
 # this is a wrapper module for different platform implementations of the
 # port enumeration feature
 #
-# (C) 2011-2013 Chris Liechti <cliechti@gmx.net>
-# this is distributed under a free software license, see license.txt
+# (C) 2011-2015 Chris Liechti <cliechti@gmx.net>
+#
+# SPDX-License-Identifier:    BSD-3-Clause
 
 """\
 The ``comports`` function is expected to return an iterable that yields tuples
@@ -26,12 +27,15 @@ import os
 # try to detect the OS so that a device can be selected...
 plat = sys.platform.lower()
 
-if   plat[:5] == 'linux':    # Linux (confirmed)
+if plat[:5] == 'linux':    # Linux (confirmed)
     from serial.tools.list_ports_linux import comports
 
 elif plat == 'cygwin':       # cygwin/win32
+    # cygwin accepts /dev/com* in many contexts
+    # (such as 'open' call, explicit 'ls'), but 'glob.glob'
+    # and bare 'ls' do not; so use /dev/ttyS* instead
     def comports():
-        devices = glob.glob('/dev/com*')
+        devices = glob.glob('/dev/ttyS*')
         return [(d, d, d) for d in devices]
 
 elif plat[:7] == 'openbsd':    # OpenBSD
@@ -43,7 +47,7 @@ elif plat[:3] == 'bsd' or  \
         plat[:7] == 'freebsd':
 
     def comports():
-        devices = glob.glob('/dev/cuad*')
+        devices = glob.glob('/dev/cua*[!.init][!.lock]')
         return [(d, d, d) for d in devices]
 
 elif plat[:6] == 'darwin':   # OS X (confirmed)
@@ -81,6 +85,7 @@ elif plat[:3] == 'aix':      # AIX
 
 else:
     # platform detection has failed...
+    import serial
     sys.stderr.write("""\
 don't know how to enumerate ttys on this system.
 ! I you know how the serial ports are named send this information to
@@ -98,4 +103,4 @@ this module running...
 # test
 if __name__ == '__main__':
     for port, desc, hwid in sorted(comports()):
-        print "%s: %s [%s]" % (port, desc, hwid)
+        print("%s: %s [%s]" % (port, desc, hwid))

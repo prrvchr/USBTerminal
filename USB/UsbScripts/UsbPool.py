@@ -24,21 +24,27 @@
 """ Pool document object """
 from __future__ import unicode_literals
 
+from PySide import QtCore, QtGui
 import FreeCAD, FreeCADGui
-
+from UsbScripts import UsbThread
+from UsbScripts import TerminalDock
 
 class Pool:
 
     def __init__(self, obj):
-        obj.addProperty("App::PropertyBool", "DualPort", "Pool","DualPort")
-        obj.DualPort = False
-        obj.addProperty("App::PropertyBool", "DualView", "Pool","DualView")
-        obj.DualView = False
-        obj.addProperty("App::PropertyEnumeration", "EndOfLine", "Pool","End of line")
-        obj.EndOfLine = self.getEndOfLine()
-        obj.EndOfLine = b"LF"
-        obj.addProperty("App::PropertyPythonObject", "Serials", "Pool","PySerial object", 2)
+        """ Array of PySerial port object instance """
+        obj.addProperty("App::PropertyPythonObject", "Serials", "Base", "", 2)
         obj.Serials = None
+        """ Usb pool property """
+        obj.addProperty("App::PropertyBool", "DualPort", "Pool","Enable/disable dualport connection (fullduplex)")
+        obj.DualPort = False
+        obj.addProperty("App::PropertyEnumeration", "EndOfLine", "Pool","End of line char (\\r, \\n, or \\r\\n)")
+        obj.EndOfLine = self.getEndOfLine()
+        obj.addProperty("App::PropertyBool", "Open", "Pool", "Open the connection", 2)
+        obj.Open = False
+        obj.addProperty("App::PropertyBool", "DualView", "Terminal","Enable/disable terminal dualview")
+        obj.DualView = False
+        obj.EndOfLine = b"LF"
         obj.Proxy = self
 
     def getEndOfLine(self):
@@ -50,11 +56,23 @@ class Pool:
 
     def execute(self, obj):
         pass
-
+        
     def onChanged(self, obj, prop):
         if prop == "DualPort":
-            FreeCADGui.runCommand("Usb_DualPort")
-
+            while len(obj.Group) < int(obj.DualPort) + 1:
+                FreeCADGui.runCommand("Usb_Port")
+        if prop == "Open":
+            if obj.Open:
+                thread = UsbThread.UsbThread(obj)
+                dock = TerminalDock.TerminalDock(thread, obj)
+                FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, dock) 
+            else:
+                mw = FreeCADGui.getMainWindow()
+                dock = mw.findChild(QtGui.QDockWidget, obj.Document.Name+"-"+obj.Name)
+                dock.setParent(None)
+                dock.close()
+                obj.Serials = None                
+            
 
 class _ViewProviderPool:
 
@@ -89,10 +107,10 @@ class _ViewProviderPool:
 class CommandUsbPool:
 
     def GetResources(self):
-        return {'Pixmap'  : b"icons:Usb-Pool.xpm",
-                'MenuText': b"New Pool",
-                'Accel'   : b"U, T",
-                'ToolTip' : b"New Pool"}
+        return {b'Pixmap'  : b"icons:Usb-Pool.xpm",
+                b'MenuText': b"New Pool",
+                b'Accel'   : b"U, T",
+                b'ToolTip' : b"New Pool"}
 
     def IsActive(self):
         return not FreeCAD.ActiveDocument is None
@@ -106,7 +124,7 @@ obj = FreeCAD.ActiveDocument.addObject("App::DocumentObjectGroupPython", "Pool")
 UsbPool.Pool(obj)
 UsbPool._ViewProviderPool(obj.ViewObject)
 FreeCADGui.Selection.addSelection(obj)
-FreeCADGui.runCommand("Usb_DualPort")'''
+FreeCADGui.runCommand("Usb_Port")'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.commitTransaction()
         FreeCAD.ActiveDocument.recompute()

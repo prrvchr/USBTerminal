@@ -168,5 +168,5 @@ class TerminalDock(QtGui.QDockWidget):
         self.input.connect(thread.on_output)
         thread.input.connect(self.output)
         self.output.emit("Now, you are connected\n")
-        self.input.emit(thread.eol)
+        self.input.emit(pool.Proxy.getCharEndOfLine(pool))
 

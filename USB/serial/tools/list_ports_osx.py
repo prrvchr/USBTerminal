@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+#
 # portable serial port access with python
 #
 # This is a module that gathers a list of serial ports including details on OSX
@@ -8,7 +8,9 @@
 # with contributions from cibomahto, dgs3, FarMcKon, tedbrandston
 # and modifications by cliechti
 #
-# this is distributed under a free software license, see license.txt
+# (C) 2013-2015
+#
+# SPDX-License-Identifier:    BSD-3-Clause
 
 
 
@@ -64,6 +66,15 @@ cf.CFStringGetCStringPtr.restype = ctypes.c_char_p
 cf.CFNumberGetValue.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
 cf.CFNumberGetValue.restype = ctypes.c_void_p
 
+
+class HexInt(int):
+
+    """Class to pretty print a integer in a hex representation."""
+
+    def __repr__(self):
+        return "0x{0:X}".format(self)
+
+
 def get_string_property(device_t, property):
     """ Search the given device for the specified string property
 
@@ -87,7 +98,7 @@ def get_string_property(device_t, property):
     output = None
 
     if CFContainer:
-        output = cf.CFStringGetCStringPtr(CFContainer, 0)
+        output = cf.CFStringGetCStringPtr(CFContainer, 0).decode('mac_roman')
 
     return output
 
@@ -115,8 +126,39 @@ def get_int_property(device_t, property):
 
     if CFContainer:
         output = cf.CFNumberGetValue(CFContainer, 2, ctypes.byref(number))
+        # The Number 2 is defined as kCFNumberSInt16Type in MacTypes.h
 
-    return number.value
+    return HexInt(number.value)
+
+
+def get_int32_property(device_t, property):
+    """ Search the given device for the specified string property
+
+    @param device_t Device to search
+    @param property String to search for.
+    @return Python string containing the value, or None if not found.
+    """
+    key = cf.CFStringCreateWithCString(
+        kCFAllocatorDefault,
+        property.encode("mac_roman"),
+        kCFStringEncodingMacRoman
+    )
+
+    CFContainer = iokit.IORegistryEntryCreateCFProperty(
+        device_t,
+        key,
+        kCFAllocatorDefault,
+        0
+    )
+
+    number = ctypes.c_uint32()
+
+    if CFContainer:
+        output = cf.CFNumberGetValue(CFContainer, 3, ctypes.byref(number))
+        # The Number 3 is defined as kCFNumberSInt32Type in MacTypes.h
+
+    return HexInt(number.value)
+
 
 def IORegistryEntryGetName(device):
     pathname = ctypes.create_string_buffer(100) # TODO: Is this ok?
@@ -133,6 +175,7 @@ def GetParentDeviceByType(device, parent_type):
         @return Pointer to the parent type, or None if it was not found.
     """
     # First, try to walk up the IOService tree to find a parent of this device that is a IOUSBDevice.
+    parent_type = parent_type.encode('mac_roman')
     while IORegistryEntryGetName(device) != parent_type:
         parent = ctypes.c_void_p()
         response = iokit.IORegistryEntryGetParentEntry(
@@ -156,7 +199,7 @@ def GetIOServicesByType(service_type):
 
     response = iokit.IOServiceGetMatchingServices(
         kIOMasterPortDefault,
-        iokit.IOServiceMatching(service_type),
+        iokit.IOServiceMatching(service_type.encode('mac_roman')),
         ctypes.byref(serial_port_iterator)
     )
 
@@ -180,29 +223,31 @@ def comports():
         info = []
 
         # First, add the callout device file.
-        info.append(get_string_property(service, "IOCalloutDevice"))
+        device = get_string_property(service, "IOCalloutDevice")
+        if device:
+            info.append(device)
 
-        # If the serial port is implemented by a
-        usb_device = GetParentDeviceByType(service, "IOUSBDevice")
-        if usb_device != None:
-            info.append(get_string_property(usb_device, "USB Product Name"))
+            # If the serial port is implemented by a
+            usb_device = GetParentDeviceByType(service, "IOUSBDevice")
+            if usb_device is not None:
+                info.append(get_string_property(usb_device, "USB Product Name") or 'n/a')
 
-            info.append(
-                "USB VID:PID=%x:%x SNR=%s"%(
-                get_int_property(usb_device, "idVendor"),
-                get_int_property(usb_device, "idProduct"),
-                get_string_property(usb_device, "USB Serial Number"))
-            )
-        else:
-           info.append('n/a')
-           info.append('n/a')
+                info.append(
+                    "USB VID:PID=%x:%x SNR=%s"%(
+                    get_int_property(usb_device, "idVendor"),
+                    get_int_property(usb_device, "idProduct"),
+                    get_string_property(usb_device, "USB Serial Number"))
+                )
+            else:
+               info.append('n/a')
+               info.append('n/a')
 
-        ports.append(info)
+            ports.append(info)
 
     return ports
 
 # test
 if __name__ == '__main__':
     for port, desc, hwid in sorted(comports()):
-        print "%s: %s [%s]" % (port, desc, hwid)
+        print("%s: %s [%s]" % (port, desc, hwid))
 
