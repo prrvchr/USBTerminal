@@ -32,19 +32,23 @@ from UsbScripts import TerminalDock
 class Pool:
 
     def __init__(self, obj):
-        """ Array of PySerial port object instance """
-        obj.addProperty("App::PropertyPythonObject", "Serials", "Base", "", 2)
+        """ PySerial port object instance property """
+        obj.addProperty("App::PropertyPythonObject", "Serials", "Base", "Array of PySerial port instance", 2)
         obj.Serials = None
-        """ Usb pool property """
-        obj.addProperty("App::PropertyBool", "DualPort", "Pool","Enable/disable dualport connection (fullduplex)")
-        obj.DualPort = False
-        obj.addProperty("App::PropertyEnumeration", "EndOfLine", "Pool","End of line char (\\r, \\n, or \\r\\n)")
-        obj.EndOfLine = self.getEndOfLine()
-        obj.addProperty("App::PropertyBool", "Open", "Pool", "Open the connection", 2)
+        obj.addProperty("App::PropertyBool", "Open", "Base", "Setting open/close the connection", 2, True, True)
         obj.Open = False
-        obj.addProperty("App::PropertyBool", "DualView", "Terminal","Enable/disable terminal dualview")
-        obj.DualView = False
+        obj.addProperty("App::PropertyPythonObject", "Uploading", "Base", "Event switch of upload", 2)
+        obj.Uploading = None
+        """ Usb pool property """
+        obj.addProperty("App::PropertyBool", "DualPort", "Pool", "Enable/disable dualport connection (fullduplex)")
+        obj.DualPort = False
+        obj.addProperty("App::PropertyEnumeration", "EndOfLine", "Pool", "End of line char (\\r, \\n, or \\r\\n)")
+        obj.EndOfLine = self.getEndOfLine()
         obj.EndOfLine = b"LF"
+        obj.addProperty("App::PropertyStringList", "AckList", "Terminal", "Acknowledge string list")
+        obj.addProperty("App::PropertyBool", "DualView", "Terminal", "Enable/disable terminal dualview")
+        obj.DualView = False
+        obj.addProperty("App::PropertyFile", "UploadFile", "Terminal", "Files to upload")
         obj.Proxy = self
 
     def getEndOfLine(self):
@@ -52,11 +56,11 @@ class Pool:
     def getIndexEndOfLine(self, obj):
         return self.getEndOfLine().index(obj.EndOfLine)
     def getCharEndOfLine(self, obj):
-        return ["\r","\n","\r\n"][self.getIndexEndOfLine(obj)]  
+        return ["\r","\n","\r\n"][self.getIndexEndOfLine(obj)]
 
     def execute(self, obj):
         pass
-        
+
     def onChanged(self, obj, prop):
         if prop == "DualPort":
             while len(obj.Group) < int(obj.DualPort) + 1:
@@ -64,15 +68,20 @@ class Pool:
         if prop == "Open":
             if obj.Open:
                 thread = UsbThread.UsbThread(obj)
-                dock = TerminalDock.TerminalDock(thread, obj)
-                FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, dock) 
+                if thread.start():
+                    dock = TerminalDock.TerminalDock(thread, obj)
+                    FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+                else:
+                    del thread
             else:
+                if not obj.Uploading.is_set():
+                    obj.Uploading.set()
                 mw = FreeCADGui.getMainWindow()
                 dock = mw.findChild(QtGui.QDockWidget, obj.Document.Name+"-"+obj.Name)
                 dock.setParent(None)
                 dock.close()
-                obj.Serials = None                
-            
+                obj.Serials = None
+                obj.Uploading = None
 
 class _ViewProviderPool:
 
@@ -89,7 +98,7 @@ class _ViewProviderPool:
         return "icons:Usb-Pool.xpm"
 
     def onChanged(self, vobj, prop): #optional
-        pass    
+        pass
 
     def updateData(self, vobj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
@@ -109,7 +118,7 @@ class CommandUsbPool:
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Pool.xpm",
                 b'MenuText': b"New Pool",
-                b'Accel'   : b"U, T",
+                b'Accel'   : b"U, L",
                 b'ToolTip' : b"New Pool"}
 
     def IsActive(self):
@@ -135,8 +144,3 @@ if FreeCAD.GuiUp:
     FreeCADGui.addCommand('Usb_Pool', CommandUsbPool())
 
 FreeCAD.Console.PrintLog("Loading UsbPool... done\n")
-
-
-
-
-

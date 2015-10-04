@@ -34,36 +34,36 @@ class Port:
         """ Internal property for management of data update """
         obj.addProperty("App::PropertyStringList", "Update", "Base", "", 2, True, True)
         """ PySerial discovered port tools """
-        obj.addProperty("App::PropertyEnumeration", "Details", "Discovered ports", "Discovered ports view details (refresh too!)")
+        obj.addProperty("App::PropertyEnumeration", "Details", "Discovery tool", "Discovered ports view details (refresh too!)")
         obj.Details = self.getDetails()
         obj.Details = b"Detail"
-        obj.addProperty("App::PropertyEnumeration", "Ports", "Discovered ports", "Discovered port (need refresh?)")
+        obj.addProperty("App::PropertyEnumeration", "Ports", "Discovery tool", "Discovered port (need refresh?)")
         obj.Ports = self.getPorts(obj)
         """ PySerial port property """
-        obj.addProperty("App::PropertyEnumeration", "Baudrate", "Port", "Set baud rate (default 115200)")
+        obj.addProperty("App::PropertyEnumeration", "Baudrate", "PySerial", "Set baud rate (default 115200)")
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = b"115200"
-        obj.addProperty("App::PropertyEnumeration", "ByteSize", "Port", "ByteSize")
+        obj.addProperty("App::PropertyEnumeration", "ByteSize", "PySerial", "ByteSize")
         obj.ByteSize = map(str, serial.Serial().BYTESIZES)
         obj.ByteSize = b"8"
-        obj.addProperty("App::PropertyBool", "DsrDtr", "Port", "set initial DTR line state")
+        obj.addProperty("App::PropertyBool", "DsrDtr", "PySerial", "set initial DTR line state")
         obj.DsrDtr = False
-        obj.addProperty("App::PropertyFloat", "InterByteTimeout", "Port", "InterByteTimeout")
+        obj.addProperty("App::PropertyFloat", "InterByteTimeout", "PySerial", "InterByteTimeout")
         obj.InterByteTimeout = -1
-        obj.addProperty("App::PropertyEnumeration", "Parity", "Port", "set parity (None, Even, Odd, Space, Mark) default N")
+        obj.addProperty("App::PropertyEnumeration", "Parity", "PySerial", "set parity (None, Even, Odd, Space, Mark) default N")
         obj.Parity = map(str, serial.Serial().PARITIES)
         obj.Parity = b"N"
-        obj.addProperty("App::PropertyString", "Port", "Port", "Port, a number or a device name")
-        obj.addProperty("App::PropertyBool", "RtsCts", "Port", "enable RTS/CTS flow control")
+        obj.addProperty("App::PropertyString", "Port", "PySerial", "Port, a number or a device name")
+        obj.addProperty("App::PropertyBool", "RtsCts", "PySerial", "enable RTS/CTS flow control")
         obj.RtsCts = False
-        obj.addProperty("App::PropertyEnumeration", "StopBits", "Port", "StopBits")
+        obj.addProperty("App::PropertyEnumeration", "StopBits", "PySerial", "StopBits")
         obj.StopBits = map(str, serial.Serial().STOPBITS)
         obj.StopBits = b"1"
-        obj.addProperty("App::PropertyFloat", "Timeout", "Port", "Set a read timeout (negative value wait forever)")
+        obj.addProperty("App::PropertyFloat", "Timeout", "PySerial", "Set a read timeout (negative value wait forever)")
         obj.Timeout = 0.05
-        obj.addProperty("App::PropertyFloat", "WriteTimeout", "Port", "WriteTimeout")
+        obj.addProperty("App::PropertyFloat", "WriteTimeout", "PySerial", "WriteTimeout")
         obj.WriteTimeout = 0.05
-        obj.addProperty("App::PropertyBool", "XonXoff", "Port", "enable software flow control")
+        obj.addProperty("App::PropertyBool", "XonXoff", "PySerial", "enable software flow control")
         obj.XonXoff = False
         obj.Proxy = self
 
@@ -71,7 +71,7 @@ class Port:
         return [b"Detail", b"Standart", b"VID:PID"]
     def getDetailsIndex(self, obj):
         return self.getDetails().index(obj.Details)
-    
+
     def getPorts(self, obj):
         return [x[self.getDetailsIndex(obj)] for x in list_ports.comports()]
     def getPortsIndex(self, obj):
@@ -86,7 +86,7 @@ class Port:
         except StopIteration as e:
             return i
         return -1
-    
+
     def refreshPorts(self, obj):
         index = self.getPortsIndex(obj)
         obj.Ports = self.getPorts(obj)
@@ -97,7 +97,7 @@ class Port:
         baudrate = obj.Baudrate
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = baudrate
-            
+
     def getSettingsDict(self, obj):
         return {b"port" : b"{}".format(obj.Port),
                 b"baudrate" : int(obj.Baudrate),
@@ -118,7 +118,7 @@ class Port:
             if name == "Port":
                 self.refreshPorts(obj)
             if name == "Baudrate":
-                self.refreshBaudrate(obj)                
+                self.refreshBaudrate(obj)
         obj.Update = []
 
     def onChanged(self, obj, prop):
@@ -149,7 +149,7 @@ class _ViewProviderPort:
         return "icons:Usb-Port.xpm"
 
     def onChanged(self, vobj, prop): #optional
-        pass    
+        pass
 
     def updateData(self, vobj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
@@ -202,8 +202,3 @@ if FreeCAD.GuiUp:
     FreeCADGui.addCommand('Usb_Port', CommandUsbPort())
 
 FreeCAD.Console.PrintLog("Loading UsbPort... done\n")
-
-
-
-
-

@@ -24,7 +24,7 @@
 """ GUI Terminal Dock object """
 from __future__ import unicode_literals
 
-from PySide import QtGui
+from PySide import QtCore, QtGui
 from PySide.QtCore import Qt, Signal, Slot
 
 
@@ -83,6 +83,12 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
         self.addToHistory(command)
         self.input.emit(command)
 
+    @Slot(unicode)
+    def on_echo(self, data):
+        self.insertPlainText(data)
+        self.ensureCursorVisible()
+        self.input.emit(data.strip())
+
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Enter, Qt.Key_Return):
             if self.textCursor().atEnd():
@@ -136,26 +142,26 @@ class TerminalWidget(OutPutTextEdit, InPutTextEdit):
         InPutTextEdit.__init__(self, parent)
         parent.output.connect(self.on_output)
         self.input.connect(parent.input)
+        parent.echo.connect(self.on_echo)
 
-
-class DualTerminalWidget(QtGui.QWidget):
+class DualTerminalWidget(QtGui.QSplitter):
 
     def __init__(self, parent=None):
-        QtGui.QWidget.__init__(self, parent=None)
-        layout = QtGui.QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        QtGui.QSplitter.__init__(self, QtCore.Qt.Vertical, parent=None)
         output = OutPutTextEdit(self)
-        layout.addWidget(output)
+        self.addWidget(output)
         input = InPutTextEdit(self)
-        layout.addWidget(input)
+        self.addWidget(input)
         parent.output.connect(output.on_output)
         input.input.connect(parent.input)
+        parent.echo.connect(input.on_echo)
 
 
 class TerminalDock(QtGui.QDockWidget):
 
     input = Signal(unicode)
     output = Signal(unicode)
+    echo = Signal(unicode)
 
     def __init__(self, thread, pool):
         QtGui.QDockWidget.__init__(self)
@@ -167,6 +173,6 @@ class TerminalDock(QtGui.QDockWidget):
             self.setWidget(TerminalWidget(self))
         self.input.connect(thread.on_output)
         thread.input.connect(self.output)
+        thread.echo.connect(self.echo)
         self.output.emit("Now, you are connected\n")
         self.input.emit(pool.Proxy.getCharEndOfLine(pool))
-

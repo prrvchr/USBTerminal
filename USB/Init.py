@@ -29,5 +29,4 @@
 ParGrp = App.ParamGet("User parameter:BaseApp/Workbench").GetGroup("USB")
 
 # Set the needed information
-ParGrp.SetString("WorkBenchName",    "USB")
-
+ParGrp.SetString("WorkBenchName", "USB")

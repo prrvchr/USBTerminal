@@ -59,10 +59,10 @@ class UsbWorkbench(Workbench):
         from UsbScripts import UsbPool
         from UsbScripts import UsbPort
         from UsbScripts import UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Terminal"]        
+        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Terminal", b"Usb_Upload"]
         # Add commands to menu and toolbar
         self.appendToolbar("Commands for Usb", commands)
-        self.appendMenu(["USB"], commands)
+        self.appendMenu([b"USB"], commands)
         Log('Loading USB workbench... done\n')
 
     def GetClassName(self):
@@ -75,7 +75,3 @@ class UsbWorkbench(Workbench):
         Msg("USB workbench deactivated\n")
 
 Gui.addWorkbench(UsbWorkbench())
-
-#FreeCAD.addImportType("GCode (*.nc *.gc *.ncc *.ngc *.cnc *.tap)","PathGui")
-#FreeCAD.addExportType("GCode (*.nc *.gc *.ncc *.ngc *.cnc *.tap)","PathGui")
-

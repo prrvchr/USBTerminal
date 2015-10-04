@@ -31,4 +31,3 @@ from PySide.QtCore import QDir
 ICONS_PATH = "/Icons"
 # use "icons" as prefix which we used in the .py file (pixmap: icons:file.svg)
 QDir.addSearchPath("icons", path.dirname(__file__) + ICONS_PATH)
-
