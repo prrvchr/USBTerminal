@@ -28,6 +28,7 @@ import FreeCAD, FreeCADGui
 import serial
 from serial.tools import list_ports
 
+
 class Port:
 
     def __init__(self, obj):
@@ -69,11 +70,13 @@ class Port:
 
     def getDetails(self):
         return [b"Detail", b"Standart", b"VID:PID"]
+
     def getDetailsIndex(self, obj):
         return self.getDetails().index(obj.Details)
 
     def getPorts(self, obj):
         return [x[self.getDetailsIndex(obj)] for x in list_ports.comports()]
+
     def getPortsIndex(self, obj):
         #Get the index of the port:
         try:
@@ -97,19 +100,6 @@ class Port:
         baudrate = obj.Baudrate
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = baudrate
-
-    def getSettingsDict(self, obj):
-        return {b"port" : b"{}".format(obj.Port),
-                b"baudrate" : int(obj.Baudrate),
-                b"bytesize" : int(obj.ByteSize),
-                b"parity" : b"{}".format(obj.Parity),
-                b"stopbits" : float(obj.StopBits),
-                b"xonxoff" : obj.XonXoff,
-                b"rtscts" : obj.RtsCts,
-                b"dsrdtr" : obj.DsrDtr,
-                b"timeout" : None if obj.Timeout < 0 else obj.Timeout,
-                b"write_timeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
-                b"inter_byte_timeout" : None if obj.InterByteTimeout < 0 else obj.InterByteTimeout}
 
     def execute(self, obj):
         if not obj.Update:
@@ -196,6 +186,7 @@ FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0].addObject(obj)
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
+
 
 if FreeCAD.GuiUp: 
     # register the FreeCAD command

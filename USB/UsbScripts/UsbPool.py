@@ -29,6 +29,7 @@ import FreeCAD, FreeCADGui
 from UsbScripts import UsbThread
 from UsbScripts import TerminalDock
 
+
 class Pool:
 
     def __init__(self, obj):
@@ -53,8 +54,10 @@ class Pool:
 
     def getEndOfLine(self):
         return [b"CR",b"LF",b"CRLF"]
+
     def getIndexEndOfLine(self, obj):
         return self.getEndOfLine().index(obj.EndOfLine)
+
     def getCharEndOfLine(self, obj):
         return ["\r","\n","\r\n"][self.getIndexEndOfLine(obj)]
 
@@ -69,7 +72,7 @@ class Pool:
             if obj.Open:
                 thread = UsbThread.UsbThread(obj)
                 if thread.start():
-                    dock = TerminalDock.TerminalDock(thread, obj)
+                    dock = TerminalDock.TerminalDock(obj, thread)
                     FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
                 else:
                     del thread
@@ -77,11 +80,13 @@ class Pool:
                 if not obj.Uploading.is_set():
                     obj.Uploading.set()
                 mw = FreeCADGui.getMainWindow()
-                dock = mw.findChild(QtGui.QDockWidget, obj.Document.Name+"-"+obj.Name)
-                dock.setParent(None)
-                dock.close()
+                docks = mw.findChildren(QtGui.QDockWidget, obj.Document.Name+"-"+obj.Name)
+                for dock in docks:
+                    dock.setParent(None)
+                    dock.close()
                 obj.Serials = None
                 obj.Uploading = None
+
 
 class _ViewProviderPool:
 

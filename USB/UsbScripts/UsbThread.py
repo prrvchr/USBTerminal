@@ -52,19 +52,33 @@ class UsbThread(QObject):
         serials = []
         try:
             for i in range(int(self.pool.DualPort) + 1):
-                settings = self.pool.Group[i].Proxy.getSettingsDict(self.pool.Group[i])
+                settings = self.getSettingsDict(self.pool.Group[i])
                 port = settings.pop("port", 0)
                 serials.append(serial.serial_for_url(port, **settings))
         except serial.SerialException as e:
             Console.PrintError("Error occurred opening port: {}\n".format(e))
             return False
-        Console.PrintLog("{} opening port {}... done\n".format(self.pool.Name, [x.port for x in serials]))
+        Console.PrintLog("{} opening port {}... done\n".\
+                         format(self.pool.Name, [x.port for x in serials]))
         self.pool.Serials = serials
         self.pool.Uploading = Event()
         self.reader.start()
         self.writer.start()
         self.uploader.start()
         return True
+
+    def getSettingsDict(self, obj):
+        return {b"port" : b"{}".format(obj.Port),
+                b"baudrate" : int(obj.Baudrate),
+                b"bytesize" : int(obj.ByteSize),
+                b"parity" : b"{}".format(obj.Parity),
+                b"stopbits" : float(obj.StopBits),
+                b"xonxoff" : obj.XonXoff,
+                b"rtscts" : obj.RtsCts,
+                b"dsrdtr" : obj.DsrDtr,
+                b"timeout" : None if obj.Timeout < 0 else obj.Timeout,
+                b"write_timeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
+                b"inter_byte_timeout" : None if obj.InterByteTimeout < 0 else obj.InterByteTimeout}
 
     @Slot(unicode)
     def on_output(self, data):
@@ -82,7 +96,8 @@ class UsbThread(QObject):
         """ Loop and copy PySerial -> Terminal """
         try:
             s = self.pool.Serials[0]
-            sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=self.pool.Proxy.getCharEndOfLine(self.pool))
+            sio = io.TextIOWrapper(io.BufferedRWPair(s, s),\
+                  newline=self.pool.Proxy.getCharEndOfLine(self.pool))
             while self.pool.Open:
                 data = sio.readline()
                 if len(data):
@@ -93,7 +108,8 @@ class UsbThread(QObject):
             Console.PrintError("Error occurred in reader Process: {}\n".format(e))
             return
         s.close()
-        Console.PrintLog("{} reader thread stop on port {}... done\n".format(self.pool.Name, s.port))
+        Console.PrintLog("{} reader thread {} stop on port {}... done\n".\
+                         format(self.pool.Name, self.reader.name, s.port))
 
     def run_writer(self):
         """ Loop and copy Terminal -> PySerial """
@@ -108,7 +124,8 @@ class UsbThread(QObject):
             Console.PrintError("Error occurred in writer Process: {}\n".format(e))
             return
         s.close()
-        Console.PrintLog("{} writer thread stop on port {}... done\n".format(self.pool.Name, s.port))
+        Console.PrintLog("{} writer thread {} stop on port {}... done\n".\
+                         format(self.pool.Name, self.writer.name, s.port))
 
     def run_uploader(self):
         """ Loop and copy file -> Terminal """
@@ -131,4 +148,6 @@ class UsbThread(QObject):
         except Exception as e:
             Console.PrintError("Error occurred in uploader Process: {}\n".format(e))
             return
-        Console.PrintLog("{} uploader thread stop... done\n".format(self.pool.Name))
+        Console.PrintLog("{} uploader thread {} stop... done\n".\
+                         format(self.pool.Name, self.uploader.name))
+       

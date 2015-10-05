@@ -32,7 +32,7 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
 
     input = Signal(unicode)
 
-    def __init__(self, parent=None):
+    def __init__(self):
         QtGui.QPlainTextEdit.__init__(self)
         self.setWordWrapMode(QtGui.QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
@@ -52,6 +52,11 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
         self.moveCursor(QtGui.QTextCursor.End)
+
+    def runCommand(self):
+        command = self.getCommand()
+        self.addToHistory(command)
+        self.input.emit(command)
 
     def getHistory(self):
         return self.history
@@ -77,17 +82,6 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
             if self.history_index < hist_len:
                 return self.history[self.history_index]
         return ""
-
-    def runCommand(self):
-        command = self.getCommand()
-        self.addToHistory(command)
-        self.input.emit(command)
-
-    @Slot(unicode)
-    def on_echo(self, data):
-        self.insertPlainText(data)
-        self.ensureCursorVisible()
-        self.input.emit(data.strip())
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Enter, Qt.Key_Return):
@@ -118,17 +112,19 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
             return
         self.moveCursor(QtGui.QTextCursor.End)
 
+    @Slot(unicode)
+    def on_echo(self, data):
+        self.insertPlainText(data)
+        self.ensureCursorVisible()
+        self.input.emit(data.strip())
+
 
 class OutPutTextEdit(QtGui.QPlainTextEdit):
 
-    def __init__(self, parent=None):
+    def __init__(self):
         QtGui.QPlainTextEdit.__init__(self)
         self.setWordWrapMode(QtGui.QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
-
-    def showMessage(self, message):
-        self.appendPlainText(message)
-        self.ensureCursorVisible()
 
     @Slot(unicode)
     def on_output(self, data):
@@ -138,41 +134,39 @@ class OutPutTextEdit(QtGui.QPlainTextEdit):
 
 class TerminalWidget(OutPutTextEdit, InPutTextEdit):
 
-    def __init__(self, parent=None):
-        InPutTextEdit.__init__(self, parent)
-        parent.output.connect(self.on_output)
-        self.input.connect(parent.input)
-        parent.echo.connect(self.on_echo)
+    def __init__(self, pool, thread):
+        InPutTextEdit.__init__(self)
+        thread.input.connect(self.on_output)
+        self.input.connect(thread.on_output)
+        thread.echo.connect(self.on_echo)
+        eol = pool.Proxy.getCharEndOfLine(pool)
+        thread.input.emit("Now, you are connected{}".format(eol))
+        self.input.emit(eol)
+
 
 class DualTerminalWidget(QtGui.QSplitter):
 
-    def __init__(self, parent=None):
-        QtGui.QSplitter.__init__(self, QtCore.Qt.Vertical, parent=None)
-        output = OutPutTextEdit(self)
-        self.addWidget(output)
-        input = InPutTextEdit(self)
-        self.addWidget(input)
-        parent.output.connect(output.on_output)
-        input.input.connect(parent.input)
-        parent.echo.connect(input.on_echo)
+    def __init__(self, pool, thread):
+        QtGui.QSplitter.__init__(self, QtCore.Qt.Vertical)
+        outputText = OutPutTextEdit()
+        self.addWidget(outputText)
+        inputText = InPutTextEdit()
+        self.addWidget(inputText)
+        thread.input.connect(outputText.on_output)
+        inputText.input.connect(thread.on_output)
+        thread.echo.connect(inputText.on_echo)  
+        eol = pool.Proxy.getCharEndOfLine(pool)
+        thread.input.emit("Now, you are connected{}".format(eol))
+        inputText.input.emit(eol)
 
 
 class TerminalDock(QtGui.QDockWidget):
 
-    input = Signal(unicode)
-    output = Signal(unicode)
-    echo = Signal(unicode)
-
-    def __init__(self, thread, pool):
+    def __init__(self, pool, thread):
         QtGui.QDockWidget.__init__(self)
         self.setObjectName("{}-{}".format(pool.Document.Name, pool.Name))
         self.setWindowTitle("{} terminal".format(pool.Label))
         if pool.DualView:
-            self.setWidget(DualTerminalWidget(self))
+            self.setWidget(DualTerminalWidget(pool, thread))
         else:
-            self.setWidget(TerminalWidget(self))
-        self.input.connect(thread.on_output)
-        thread.input.connect(self.output)
-        thread.echo.connect(self.echo)
-        self.output.emit("Now, you are connected\n")
-        self.input.emit(pool.Proxy.getCharEndOfLine(pool))
+            self.setWidget(TerminalWidget(pool, thread))
