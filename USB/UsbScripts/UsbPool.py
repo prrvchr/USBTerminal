@@ -60,8 +60,8 @@ class Pool:
         obj.addProperty("App::PropertyInteger",
                         "Buffers",
                         "Pool",
-                        "Buffers keep free for file upload")
-        obj.Buffers = 8
+                        "Upload file buffers to keep free")
+        obj.Buffers = 5
         obj.addProperty("App::PropertyFile",
                         "Driver",
                         "Pool",
@@ -154,21 +154,29 @@ FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, dock)'''
                 dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)
                 dock.driver.open()
             else:
-                if obj.Serials is None:
-                    return
+                #if obj.Serials is None:
+                #    return
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)
                 dock.driver.close()
         if prop == "Start":
             objname = "{}-{}".format(obj.Document.Name, obj.Name)
-            dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)            
+            dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)
+            if dock is None:
+                if obj.Start:
+                    obj.Start = False
+                return
             if obj.Start:
                 dock.driver.start()
             else:
                 dock.driver.stop()
         if prop == "Pause":
             objname = "{}-{}".format(obj.Document.Name, obj.Name)
-            dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)            
+            dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname) 
+            if dock is None:
+                if obj.Pause:
+                    obj.Pause = False                
+                return            
             if obj.Pause:
                 dock.driver.pause()
             else:

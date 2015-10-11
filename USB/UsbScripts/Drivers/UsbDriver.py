@@ -32,6 +32,7 @@ from FreeCAD import Console
 class UsbDriver(QObject):
 
     data = Signal(unicode)
+    gcode = Signal(unicode)    
 
     def __init__(self, pool):
         QObject.__init__(self)

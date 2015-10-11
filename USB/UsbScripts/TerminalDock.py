@@ -24,7 +24,8 @@
 """ GUI Terminal Dock object """
 from __future__ import unicode_literals
 
-from PySide.QtGui import QDockWidget, QSplitter, QPlainTextEdit, QTextOption, QTextCursor
+from PySide.QtGui import QDockWidget, QWidget, QSplitter, QPlainTextEdit
+from PySide.QtGui import QTextOption, QTextCursor, QLabel, QVBoxLayout
 from PySide.QtCore import Qt, Signal, Slot
 
 
@@ -132,16 +133,29 @@ class OutPutTextEdit(QPlainTextEdit):
         self.ensureCursorVisible()
 
 
-class TerminalWidget(OutPutTextEdit, InPutTextEdit):
+class TextEditWidget(OutPutTextEdit, InPutTextEdit):
+
+    def __init__(self):
+        InPutTextEdit.__init__(self)
+
+
+class TerminalWidget(QWidget):
 
     def __init__(self, driver):
-        InPutTextEdit.__init__(self)
-        driver.data.connect(self.on_data)
-        self.data.connect(driver.on_data)
+        QWidget.__init__(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        textEdit = TextEditWidget()
+        layout.addWidget(textEdit)
+        driver.data.connect(textEdit.on_data)
+        textEdit.data.connect(driver.on_data)
+        outputLabel = QLabel()
+        layout.addWidget(outputLabel)
+        driver.gcode.connect(outputLabel.setText)
 
 
 class DualTerminalWidget(QSplitter):
-    
+
     def __init__(self, driver):
         QSplitter.__init__(self, Qt.Vertical)
         outputText = OutPutTextEdit()
@@ -150,6 +164,9 @@ class DualTerminalWidget(QSplitter):
         self.addWidget(inputText)
         driver.data.connect(outputText.on_data)
         inputText.data.connect(driver.on_data)
+        outputLabel = QLabel()
+        self.addWidget(outputLabel)
+        driver.gcode.connect(outputLabel.setText)
 
 
 class TerminalDock(QDockWidget):

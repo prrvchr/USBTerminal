@@ -213,8 +213,8 @@ class CommandUsbPort:
             return
         pool = selection[0]
         from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
-           not isinstance(pool.Proxy, UsbPool.Pool):
+        if not pool.isDerivedFrom("App::DocumentObjectGroupPython")\
+           or not isinstance(pool.Proxy, UsbPool.Pool):
             FreeCAD.Console.PrintError("Selection is not a Pool!\n")
             return
         FreeCAD.ActiveDocument.openTransaction(b"New Port")

@@ -46,13 +46,13 @@ class CommandRefresh:
         obj = selection[0]
         from UsbScripts import UsbPool
         from UsbScripts import UsbPort
-        if obj.isDerivedFrom("App::DocumentObjectGroupPython") and \
-           isinstance(obj.Proxy, UsbPool.Pool):
+        if obj.isDerivedFrom("App::DocumentObjectGroupPython")\
+           and isinstance(obj.Proxy, UsbPool.Pool):
             code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 for port in pool.Group:
     port.Update = ["Port", "Baudrate"]'''
-        elif obj.isDerivedFrom("App::FeaturePython") and \
-             isinstance(obj.Proxy, UsbPort.Port):
+        elif obj.isDerivedFrom("App::FeaturePython")\
+             and isinstance(obj.Proxy, UsbPort.Port):
             code = '''port = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 port.Update = ["Port", "Baudrate"]'''
         else:
@@ -80,8 +80,8 @@ class CommandOpen:
             return
         obj = selection[0]
         from UsbScripts import UsbPool
-        if not obj.isDerivedFrom("App::DocumentObjectGroupPython") or \
-           not isinstance(obj.Proxy, UsbPool.Pool):
+        if not obj.isDerivedFrom("App::DocumentObjectGroupPython")\
+           or not isinstance(obj.Proxy, UsbPool.Pool):
             FreeCAD.Console.PrintError("Selection is not a Pool!\n")
             return
         code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
@@ -108,12 +108,9 @@ class CommandStart:
             return
         pool = selection[0]
         from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
-           not isinstance(pool.Proxy, UsbPool.Pool):
+        if not pool.isDerivedFrom("App::DocumentObjectGroupPython")\
+           or not isinstance(pool.Proxy, UsbPool.Pool):
             FreeCAD.Console.PrintError("Selection is not a Pool!\n")
-            return
-        if pool.Serials is None:
-            FreeCAD.Console.PrintError("Pool is not connected!\n")
             return
         code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 pool.Start = not pool.Start'''
@@ -138,12 +135,9 @@ class CommandPause:
             return
         pool = selection[0]
         from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
-           not isinstance(pool.Proxy, UsbPool.Pool):
+        if not pool.isDerivedFrom("App::DocumentObjectGroupPython")\
+           or not isinstance(pool.Proxy, UsbPool.Pool):
             FreeCAD.Console.PrintError("Selection is not a Pool!\n")
-            return
-        if pool.Serials is None:
-            FreeCAD.Console.PrintError("Pool is not connected!\n")
             return
         code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 pool.Pause = not pool.Pause'''
