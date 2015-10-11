@@ -24,17 +24,17 @@
 """ GUI Terminal Dock object """
 from __future__ import unicode_literals
 
-from PySide import QtCore, QtGui
+from PySide.QtGui import QDockWidget, QSplitter, QPlainTextEdit, QTextOption, QTextCursor
 from PySide.QtCore import Qt, Signal, Slot
 
 
-class InPutTextEdit(QtGui.QPlainTextEdit):
+class InPutTextEdit(QPlainTextEdit):
 
-    input = Signal(unicode)
+    data = Signal(unicode)
 
     def __init__(self):
-        QtGui.QPlainTextEdit.__init__(self)
-        self.setWordWrapMode(QtGui.QTextOption.NoWrap)
+        QPlainTextEdit.__init__(self)
+        self.setWordWrapMode(QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
         self.history = []
 
@@ -47,16 +47,16 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
     def setCommand(self, command):
         if self.getCommand() == command:
             return
-        self.moveCursor(QtGui.QTextCursor.End)
-        self.moveCursor(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.KeepAnchor)
+        self.moveCursor(QTextCursor.End)
+        self.moveCursor(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QTextCursor.End)
 
     def runCommand(self):
         command = self.getCommand()
         self.addToHistory(command)
-        self.input.emit(command)
+        self.data.emit(command)
 
     def getHistory(self):
         return self.history
@@ -88,10 +88,10 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
             if self.textCursor().atEnd():
                 self.runCommand()
             else:
-                self.moveCursor(QtGui.QTextCursor.End)
+                self.moveCursor(QTextCursor.End)
                 return
         elif event.key() == Qt.Key_Home:
-            self.moveCursor(QtGui.QTextCursor.StartOfLine)
+            self.moveCursor(QTextCursor.StartOfLine)
             return
         elif event.key() == Qt.Key_PageUp:
             return
@@ -110,63 +110,59 @@ class InPutTextEdit(QtGui.QPlainTextEdit):
         super(InPutTextEdit, self).mouseReleaseEvent(event)
         if self.textCursor().atEnd() or self.textCursor().hasSelection():
             return
-        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QTextCursor.End)
 
     @Slot(unicode)
     def on_echo(self, data):
         self.insertPlainText(data)
         self.ensureCursorVisible()
-        self.input.emit(data.strip())
+        self.data.emit(data.strip())
 
 
-class OutPutTextEdit(QtGui.QPlainTextEdit):
+class OutPutTextEdit(QPlainTextEdit):
 
     def __init__(self):
-        QtGui.QPlainTextEdit.__init__(self)
-        self.setWordWrapMode(QtGui.QTextOption.NoWrap)
+        QPlainTextEdit.__init__(self)
+        self.setWordWrapMode(QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
 
     @Slot(unicode)
-    def on_output(self, data):
+    def on_data(self, data):
         self.insertPlainText(data)
         self.ensureCursorVisible()
 
 
 class TerminalWidget(OutPutTextEdit, InPutTextEdit):
 
-    def __init__(self, pool, thread):
+    def __init__(self, driver):
         InPutTextEdit.__init__(self)
-        thread.input.connect(self.on_output)
-        self.input.connect(thread.on_output)
-        thread.echo.connect(self.on_echo)
-        eol = pool.Proxy.getCharEndOfLine(pool)
-        thread.input.emit("Now, you are connected{}".format(eol))
-        self.input.emit(eol)
+        driver.data.connect(self.on_data)
+        self.data.connect(driver.on_data)
 
 
-class DualTerminalWidget(QtGui.QSplitter):
-
-    def __init__(self, pool, thread):
-        QtGui.QSplitter.__init__(self, QtCore.Qt.Vertical)
+class DualTerminalWidget(QSplitter):
+    
+    def __init__(self, driver):
+        QSplitter.__init__(self, Qt.Vertical)
         outputText = OutPutTextEdit()
         self.addWidget(outputText)
         inputText = InPutTextEdit()
         self.addWidget(inputText)
-        thread.input.connect(outputText.on_output)
-        inputText.input.connect(thread.on_output)
-        thread.echo.connect(inputText.on_echo)  
-        eol = pool.Proxy.getCharEndOfLine(pool)
-        thread.input.emit("Now, you are connected{}".format(eol))
-        inputText.input.emit(eol)
+        driver.data.connect(outputText.on_data)
+        inputText.data.connect(driver.on_data)
 
 
-class TerminalDock(QtGui.QDockWidget):
+class TerminalDock(QDockWidget):
 
-    def __init__(self, pool, thread):
-        QtGui.QDockWidget.__init__(self)
+    def __init__(self, pool, driver):
+        QDockWidget.__init__(self)
         self.setObjectName("{}-{}".format(pool.Document.Name, pool.Name))
         self.setWindowTitle("{} terminal".format(pool.Label))
+        self.driver = driver
         if pool.DualView:
-            self.setWidget(DualTerminalWidget(pool, thread))
+            terminal = DualTerminalWidget(driver)
         else:
-            self.setWidget(TerminalWidget(pool, thread))
+            terminal = TerminalWidget(driver)
+        self.setWidget(terminal)
+        eol = pool.Proxy.getCharEndOfLine(pool)
+        driver.data.emit("Now, you are connected{}".format(eol))

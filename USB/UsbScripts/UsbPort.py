@@ -33,38 +33,79 @@ class Port:
 
     def __init__(self, obj):
         """ Internal property for management of data update """
-        obj.addProperty("App::PropertyStringList", "Update", "Base", "", 2, True, True)
+        obj.addProperty("App::PropertyStringList",
+                        "Update",
+                        "Base",
+                        "Feature list of port to update", 2, True, True)
         """ PySerial discovered port tools """
-        obj.addProperty("App::PropertyEnumeration", "Details", "Discovery tool", "Discovered ports view details (refresh too!)")
+        obj.addProperty("App::PropertyEnumeration",
+                        "Details",
+                        "Discovery tool",
+                        "Discovered ports view mode")
         obj.Details = self.getDetails()
         obj.Details = b"Detail"
-        obj.addProperty("App::PropertyEnumeration", "Ports", "Discovery tool", "Discovered port (need refresh?)")
+        obj.addProperty("App::PropertyEnumeration",
+                        "Ports",
+                        "Discovery tool",
+                        "Discovered ports (perhaps need refresh?)")
         obj.Ports = self.getPorts(obj)
         """ PySerial port property """
-        obj.addProperty("App::PropertyEnumeration", "Baudrate", "PySerial", "Set baud rate (default 115200)")
+        obj.addProperty("App::PropertyEnumeration",
+                        "Baudrate",
+                        "PySerial",
+                        "Set baud rate (default 115200)")
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = b"115200"
-        obj.addProperty("App::PropertyEnumeration", "ByteSize", "PySerial", "ByteSize")
+        obj.addProperty("App::PropertyEnumeration",
+                        "ByteSize",
+                        "PySerial",
+                        "ByteSize")
         obj.ByteSize = map(str, serial.Serial().BYTESIZES)
         obj.ByteSize = b"8"
-        obj.addProperty("App::PropertyBool", "DsrDtr", "PySerial", "set initial DTR line state")
+        obj.addProperty("App::PropertyBool",
+                        "DsrDtr",
+                        "PySerial",
+                        "set initial DTR line state")
         obj.DsrDtr = False
-        obj.addProperty("App::PropertyFloat", "InterByteTimeout", "PySerial", "InterByteTimeout")
+        obj.addProperty("App::PropertyFloat",
+                        "InterByteTimeout",
+                        "PySerial",
+                        "InterByteTimeout")
         obj.InterByteTimeout = -1
-        obj.addProperty("App::PropertyEnumeration", "Parity", "PySerial", "set parity (None, Even, Odd, Space, Mark) default N")
+        obj.addProperty("App::PropertyEnumeration",
+                        "Parity",
+                        "PySerial",
+                        "set parity (None, Even, Odd, Space, Mark) default N")
         obj.Parity = map(str, serial.Serial().PARITIES)
         obj.Parity = b"N"
-        obj.addProperty("App::PropertyString", "Port", "PySerial", "Port, a number or a device name")
-        obj.addProperty("App::PropertyBool", "RtsCts", "PySerial", "enable RTS/CTS flow control")
+        obj.addProperty("App::PropertyString",
+                        "Port",
+                        "PySerial",
+                        "Port, a number or a device name")
+        obj.addProperty("App::PropertyBool",
+                        "RtsCts",
+                        "PySerial",
+                        "enable RTS/CTS flow control")
         obj.RtsCts = False
-        obj.addProperty("App::PropertyEnumeration", "StopBits", "PySerial", "StopBits")
+        obj.addProperty("App::PropertyEnumeration",
+                        "StopBits",
+                        "PySerial",
+                        "StopBits")
         obj.StopBits = map(str, serial.Serial().STOPBITS)
         obj.StopBits = b"1"
-        obj.addProperty("App::PropertyFloat", "Timeout", "PySerial", "Set a read timeout (negative value wait forever)")
-        obj.Timeout = 0.05
-        obj.addProperty("App::PropertyFloat", "WriteTimeout", "PySerial", "WriteTimeout")
-        obj.WriteTimeout = 0.05
-        obj.addProperty("App::PropertyBool", "XonXoff", "PySerial", "enable software flow control")
+        obj.addProperty("App::PropertyFloat",
+                        "Timeout",
+                        "PySerial",
+                        "Set a read timeout (negative value wait forever)")
+        obj.Timeout = 0.01
+        obj.addProperty("App::PropertyFloat",
+                        "WriteTimeout",
+                        "PySerial",
+                        "WriteTimeout")
+        obj.WriteTimeout = -1
+        obj.addProperty("App::PropertyBool",
+                        "XonXoff", "PySerial",
+                        "enable software flow control")
         obj.XonXoff = False
         obj.Proxy = self
 

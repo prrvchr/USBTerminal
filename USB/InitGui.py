@@ -59,7 +59,7 @@ class UsbWorkbench(Workbench):
         from UsbScripts import UsbPool
         from UsbScripts import UsbPort
         from UsbScripts import UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Terminal", b"Usb_Upload"]
+        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
         # Add commands to menu and toolbar
         self.appendToolbar("Commands for Usb", commands)
         self.appendMenu([b"USB"], commands)
@@ -69,9 +69,9 @@ class UsbWorkbench(Workbench):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        Msg("USB workbench activated\n")
+        Log("USB workbench activated\n")
 
     def Deactivated(self):
-        Msg("USB workbench deactivated\n")
+        Log("USB workbench deactivated\n")
 
 Gui.addWorkbench(UsbWorkbench())

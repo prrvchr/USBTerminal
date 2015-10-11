@@ -25,74 +25,19 @@
 from __future__ import unicode_literals
 
 import io
-import serial
-from threading import Thread, Event
-from PySide.QtCore import QObject, Signal, Slot
+from PySide.QtCore import QThread, Signal, Slot
 from FreeCAD import Console
 
 
-class UsbThread(QObject):
+class UsbReader(QThread):
 
-    input = Signal(unicode)
-    echo = Signal(unicode)
+    data = Signal(unicode)
 
     def __init__(self, pool):
-        QObject.__init__(self)
+        QThread.__init__(self)
         self.pool = pool
-        self.reader = Thread(target=self.run_reader)
-        self.writer = Thread(target=self.run_writer)
-        self.uploader = Thread(target=self.run_uploader)
-        self.reader.setDaemon(True)
-        self.writer.setDaemon(True)
-        self.uploader.setDaemon(True)
-        self._upload = False
-        self._data = []
 
-    def start(self):
-        serials = []
-        try:
-            for i in range(int(self.pool.DualPort) + 1):
-                settings = self.getSettingsDict(self.pool.Group[i])
-                port = settings.pop("port", 0)
-                serials.append(serial.serial_for_url(port, **settings))
-        except serial.SerialException as e:
-            Console.PrintError("Error occurred opening port: {}\n".format(e))
-            return False
-        Console.PrintLog("{} opening port {}... done\n".\
-                         format(self.pool.Name, [x.port for x in serials]))
-        self.pool.Serials = serials
-        self.pool.Uploading = Event()
-        self.reader.start()
-        self.writer.start()
-        self.uploader.start()
-        return True
-
-    def getSettingsDict(self, obj):
-        return {b"port" : b"{}".format(obj.Port),
-                b"baudrate" : int(obj.Baudrate),
-                b"bytesize" : int(obj.ByteSize),
-                b"parity" : b"{}".format(obj.Parity),
-                b"stopbits" : float(obj.StopBits),
-                b"xonxoff" : obj.XonXoff,
-                b"rtscts" : obj.RtsCts,
-                b"dsrdtr" : obj.DsrDtr,
-                b"timeout" : None if obj.Timeout < 0 else obj.Timeout,
-                b"write_timeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
-                b"inter_byte_timeout" : None if obj.InterByteTimeout < 0 else obj.InterByteTimeout}
-
-    @Slot(unicode)
-    def on_output(self, data):
-        self._data.append(data + self.pool.Proxy.getCharEndOfLine(self.pool))
-
-    def ackData(self, data):
-        if len(self.pool.AckList) == 0:
-            return True
-        for ack in self.pool.AckList:
-            if ack in data:
-                return True
-        return False
-
-    def run_reader(self):
+    def run(self):
         """ Loop and copy PySerial -> Terminal """
         try:
             s = self.pool.Serials[0]
@@ -101,53 +46,38 @@ class UsbThread(QObject):
             while self.pool.Open:
                 data = sio.readline()
                 if len(data):
-                    self.input.emit(data)
-                    if self._upload and self.ackData(data):
-                        self.pool.Uploading.set()
+                    self.data.emit(data)
         except Exception as e:
-            Console.PrintError("Error occurred in reader Process: {}\n".format(e))
+            Console.PrintError("Error occurred in UsbReader thread process: {}\n".format(e))
             return
-        s.close()
-        Console.PrintLog("{} reader thread {} stop on port {}... done\n".\
-                         format(self.pool.Name, self.reader.name, s.port))
+        self.msleep(5)        
+        Console.PrintLog("{} UsbReader thread stop on port {}... done\n".\
+                         format(self.pool.Name, s.port))
 
-    def run_writer(self):
+
+class UsbWriter(QThread):
+    
+    def __init__(self, pool):
+        QThread.__init__(self)
+        self.pool = pool
+        self._data = []
+
+    @Slot(unicode)
+    def on_data(self, data):
+        self._data.append(data + self.pool.Proxy.getCharEndOfLine(self.pool))
+
+    def run(self):
         """ Loop and copy Terminal -> PySerial """
         try:
-            s = self.pool.Serials[-1]
+            s = self.pool.Serials[0]
             sio = io.TextIOWrapper(io.BufferedRWPair(s, s))
             while self.pool.Open:
                 while len(self._data):
                     sio.write(self._data.pop(0))
                     sio.flush()
         except Exception as e:
-            Console.PrintError("Error occurred in writer Process: {}\n".format(e))
+            Console.PrintError("Error occurred in UsbWriter thread process: {}\n".format(e))
             return
-        s.close()
-        Console.PrintLog("{} writer thread {} stop on port {}... done\n".\
-                         format(self.pool.Name, self.writer.name, s.port))
-
-    def run_uploader(self):
-        """ Loop and copy file -> Terminal """
-        try:
-            while self.pool.Open:
-                self.pool.Uploading.clear()
-                self.pool.Uploading.wait()
-                if not self.pool.Open:
-                    break
-                if self.pool.UploadFile:
-                    self._upload = True
-                    with open(self.pool.UploadFile) as f:
-                        for line in f:
-                            self.echo.emit(line)
-                            self.pool.Uploading.clear()
-                            self.pool.Uploading.wait()
-                            if not self.pool.Open:
-                                break
-                    self._upload = False
-        except Exception as e:
-            Console.PrintError("Error occurred in uploader Process: {}\n".format(e))
-            return
-        Console.PrintLog("{} uploader thread {} stop... done\n".\
-                         format(self.pool.Name, self.uploader.name))
-       
+        self.msleep(5)
+        Console.PrintLog("{} UsbWriter thread stop on port {}... done\n".\
+                         format(self.pool.Name, s.port))

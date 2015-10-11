@@ -62,11 +62,11 @@ port.Update = ["Port", "Baudrate"]'''
         FreeCAD.ActiveDocument.recompute()
 
 
-class CommandTerminal:
+class CommandOpen:
 
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Terminal.xpm",
-                b'MenuText': b"Terminal",
+                b'MenuText': b"Open Terminal",
                 b'Accel'   : b"U, T",
                 b'ToolTip' : b"Connect/disconnect terminal"}
 
@@ -78,29 +78,25 @@ class CommandTerminal:
         if len(selection) == 0:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
-        pool = selection[0]
+        obj = selection[0]
         from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
-           not isinstance(pool.Proxy, UsbPool.Pool):
+        if not obj.isDerivedFrom("App::DocumentObjectGroupPython") or \
+           not isinstance(obj.Proxy, UsbPool.Pool):
             FreeCAD.Console.PrintError("Selection is not a Pool!\n")
             return
-        if pool.Serials is None:
-            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Open = True'''
-        else:
-            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Open = False'''
+        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+pool.Open = not pool.Open'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 
 
-class CommandUpload:
+class CommandStart:
 
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Upload.xpm",
                 b'MenuText': b"File upload",
                 b'Accel'   : b"U, U",
-                b'ToolTip' : b"Toggle file upload"}
+                b'ToolTip' : b"Start/stop file upload"}
 
     def IsActive(self):
         return not FreeCAD.ActiveDocument is None
@@ -119,19 +115,46 @@ class CommandUpload:
         if pool.Serials is None:
             FreeCAD.Console.PrintError("Pool is not connected!\n")
             return
-        if pool.Uploading.is_set():
-            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Uploading.clear()'''
-        else:
-            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Uploading.set()'''
+        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+pool.Start = not pool.Start'''
+        FreeCADGui.doCommand(code)
+
+
+class CommandPause:
+
+    def GetResources(self):
+        return {b'Pixmap'  : b"icons:Usb-Pause.xpm",
+                b'MenuText': b"Pause file upload",
+                b'Accel'   : b"U, U",
+                b'ToolTip' : b"Pause/resume file upload"}
+
+    def IsActive(self):
+        return not FreeCAD.ActiveDocument is None
+
+    def Activated(self):
+        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+        if len(selection) == 0:
+            FreeCAD.Console.PrintError("Selection has no elements!\n")
+            return
+        pool = selection[0]
+        from UsbScripts import UsbPool
+        if not pool.isDerivedFrom("App::DocumentObjectGroupPython") or \
+           not isinstance(pool.Proxy, UsbPool.Pool):
+            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
+            return
+        if pool.Serials is None:
+            FreeCAD.Console.PrintError("Pool is not connected!\n")
+            return
+        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+pool.Pause = not pool.Pause'''
         FreeCADGui.doCommand(code)
 
 
 if FreeCAD.GuiUp:
     # register the FreeCAD command
     FreeCADGui.addCommand('Usb_Refresh', CommandRefresh())
-    FreeCADGui.addCommand('Usb_Terminal', CommandTerminal())
-    FreeCADGui.addCommand('Usb_Upload', CommandUpload())
+    FreeCADGui.addCommand('Usb_Open', CommandOpen())
+    FreeCADGui.addCommand('Usb_Start', CommandStart())
+    FreeCADGui.addCommand('Usb_Pause', CommandPause())
 
 FreeCAD.Console.PrintLog("Loading UsbCommand... done\n")
