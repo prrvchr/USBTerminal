@@ -200,7 +200,7 @@ class CommandUsbPort:
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Port.xpm",
                 b'MenuText': b"New Port",
-                b'Accel'   : b"U, P",
+                b'Accel'   : b"U, U",
                 b'ToolTip' : b"New Port"}
 
     def IsActive(self):

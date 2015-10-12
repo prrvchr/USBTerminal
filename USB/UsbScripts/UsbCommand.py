@@ -36,7 +36,7 @@ class CommandRefresh:
                 b'ToolTip' : b"Refresh available port"}
 
     def IsActive(self):
-        return not FreeCAD.ActiveDocument is None
+        return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
@@ -71,7 +71,7 @@ class CommandOpen:
                 b'ToolTip' : b"Connect/disconnect terminal"}
 
     def IsActive(self):
-        return not FreeCAD.ActiveDocument is None
+        return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
@@ -95,11 +95,11 @@ class CommandStart:
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Upload.xpm",
                 b'MenuText': b"File upload",
-                b'Accel'   : b"U, U",
+                b'Accel'   : b"U, F",
                 b'ToolTip' : b"Start/stop file upload"}
 
     def IsActive(self):
-        return not FreeCAD.ActiveDocument is None
+        return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
@@ -122,11 +122,11 @@ class CommandPause:
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Pause.xpm",
                 b'MenuText': b"Pause file upload",
-                b'Accel'   : b"U, U",
+                b'Accel'   : b"U, P",
                 b'ToolTip' : b"Pause/resume file upload"}
 
     def IsActive(self):
-        return not FreeCAD.ActiveDocument is None
+        return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)

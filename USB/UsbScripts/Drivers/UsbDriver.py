@@ -25,22 +25,25 @@
 from __future__ import unicode_literals
 
 import io
-from PySide.QtCore import QThread, QObject, Signal, Slot
+from PySide.QtCore import QThread, QObject, QMutex, Signal, Slot
 from FreeCAD import Console
 
 
 class UsbDriver(QObject):
 
     data = Signal(unicode)
-    gcode = Signal(unicode)    
+    gcode = Signal(unicode)
+    position = Signal(unicode)
+    freebuffer = Signal(unicode)    
 
     def __init__(self, pool):
         QObject.__init__(self)
         self.pool = pool
-        self.eol = pool.Proxy.getCharEndOfLine(pool)
-        s = pool.Serials[0]
+        self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
+        self.mutex = QMutex()
+        s = self.pool.Serials[0]
         self.sio = io.TextIOWrapper(io.BufferedRWPair(s, s))
-        self.reader = UsbReader(pool)
+        self.reader = UsbReader(self.pool, self.mutex)
         self.reader.data.connect(self.data)
         self.thread = QThread()
         self.thread.started.connect(self.reader.process)
@@ -49,22 +52,18 @@ class UsbDriver(QObject):
         self.thread.finished.connect(self.reader.deleteLater)
         self.thread.finished.connect(self.on_close)              
         self.reader.moveToThread(self.thread)
-        self.thread.start()
         
     def open(self):
-        self.reader.run = True
-
+        self.thread.start()
+        
     def close(self):
+        self.mutex.lock()        
         self.reader.run = False
+        self.mutex.unlock()
 
     @Slot()
     def on_close(self):
-        for s in self.pool.Serials:
-            if s.is_open:
-                s.close()
-        ports = [s.port for s in self.pool.Serials]
-        msg = "{} closing port {}... done\n"
-        Console.PrintLog(msg.format(self.pool.Name, ports))                
+        self.pool.Thread = None
         self.pool.Serials = None
 
     def start(self):
@@ -94,23 +93,31 @@ class UsbReader(QObject):
     finished = Signal()
     data = Signal(unicode)
 
-    def __init__(self, pool):
+    def __init__(self, pool, mutex):
         QObject.__init__(self)
         self.run = True
         self.pool = pool
+        self.mutex = mutex
         s = pool.Serials[0]
-        eol = pool.Proxy.getCharEndOfLine(pool) 
-        self.sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=eol)
+        self.eol = pool.Proxy.getCharEndOfLine(pool) 
+        self.sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=self.eol)
 
     @Slot()
     def process(self):
         """ Loop and copy PySerial -> Terminal """
         port = self.pool.Serials[0].port
+        msg = "{} UsbReader thread start on port {}... done\n"
+        Console.PrintLog(msg.format(self.pool.Name, port))
         try:
+            self.mutex.lock()
             while self.run:
+                self.mutex.unlock()
                 line = self.sio.readline()
                 if len(line):
-                    self.data.emit(line)
+                    line = line.strip()
+                    self.data.emit(line + self.eol)
+                self.mutex.lock()
+            self.mutex.unlock()
         except Exception as e:
             msg = "Error occurred in UsbReader thread process: {}\n"
             Console.PrintError(msg.format(e))

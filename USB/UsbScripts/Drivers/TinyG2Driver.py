@@ -21,13 +21,15 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" TinyG2 Driver Thread object (with dual endpoint, file upload) """
+""" TinyG2 Driver Thread object (with dual endpoint and file upload) """
 from __future__ import unicode_literals
 
 import io
 from PySide.QtCore import QThread, QSemaphore, QWaitCondition, QMutex
 from PySide.QtCore import QObject, Signal, Slot
 from FreeCAD import Console
+import FreeCADGui
+from pivy import coin
 
 
 class Buffers():
@@ -39,7 +41,7 @@ class Buffers():
 
 
 class Mutex():
-    
+
     def __init__(self):
         self.paused = QMutex()
         self.buffers = QMutex()
@@ -49,9 +51,11 @@ class Mutex():
 
 
 class UsbDriver(QObject):
-    
+
     data = Signal(unicode)
     gcode = Signal(unicode)
+    position = Signal(unicode)
+    freebuffer = Signal(unicode)
 
     def __init__(self, pool):
         QObject.__init__(self)
@@ -62,31 +66,30 @@ class UsbDriver(QObject):
         self.mutex = Mutex()
         self.toggle = QWaitCondition()
         self.buffers = Buffers()
-
-    def open(self):
+        doc = pool.Document.Name
+        self.sg = FreeCADGui.getDocument(doc).ActiveView.getSceneGraph()
+        self.points = []
+        self.last = [0,0,0]
         thread = QThread()
         self.reader = UsbReader(self.pool, self.buffers, self.mutex)
         self.reader.data.connect(self.data)
-        self.reader.on_data.connect(self.on_data)
+        self.reader.position.connect(self.on_position)        
+        self.reader.claimbuffer.connect(self.on_data)
+        self.reader.freebuffer.connect(self.freebuffer)        
         thread.started.connect(self.reader.process)
         self.reader.finished.connect(thread.quit)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self.reader.deleteLater)
         thread.finished.connect(self.on_close)        
         self.reader.moveToThread(thread)
-        thread.start()
         self.thread = [thread]
-        self.mutex.runreader.lock()
-        self.reader.run = True
-        self.mutex.runreader.unlock()
+
+    def open(self):
+        self.thread[0].start()
 
     def close(self):
-        if self.pool.Pause:
-            self.pool.Pause = False 
-            self.resume()
         if self.pool.Start:
             self.pool.Start = False
-            self.stop()
         else:
             self.mutex.runreader.lock()
             self.reader.run = False
@@ -94,12 +97,7 @@ class UsbDriver(QObject):
 
     @Slot()
     def on_close(self):
-        for s in self.pool.Serials:
-            if s.is_open:
-                s.close()
-        ports = [s.port for s in self.pool.Serials]
-        msg = "{} closing port {}... done\n"
-        Console.PrintLog(msg.format(self.pool.Name, ports))                
+        self.pool.Thread = None
         self.pool.Serials = None
 
     def start(self):
@@ -108,7 +106,7 @@ class UsbDriver(QObject):
         if not self.pool.Serials[-1].is_open:
             self.pool.Serials[-1].open()
         self.uploader = UsbUploader(self.pool, self.buffers, self.toggle, self.mutex)
-        self.uploader.on_data.connect(self.on_data)
+        self.uploader.claimbuffer.connect(self.on_data)
         self.uploader.gcode.connect(self.gcode)
         thread = QThread()
         thread.started.connect(self.uploader.process)
@@ -131,6 +129,8 @@ class UsbDriver(QObject):
         return False
 
     def stop(self):
+        if self.pool.Pause:
+            self.pool.Pause = False
         self.mutex.runuploader.lock()
         self.uploader.run = False
         self.mutex.runuploader.unlock()
@@ -147,7 +147,7 @@ class UsbDriver(QObject):
             self.mutex.runreader.lock()            
             self.reader.run = False
             self.mutex.runreader.unlock()
-            
+
     def pause(self):
         if self.checkPause():
             return
@@ -165,7 +165,7 @@ class UsbDriver(QObject):
             self.pool.Pause = False
             return True
         return False
-        
+
     def resume(self):
         if self.checkResume():
             return
@@ -173,7 +173,7 @@ class UsbDriver(QObject):
         self.uploader.paused = False
         self.mutex.paused.unlock()
         self.toggle.wakeAll()
-        
+
     def checkResume(self):
         if self.pool.Serials is None:
             Console.PrintError("Pool is not connected!\n")
@@ -193,22 +193,59 @@ class UsbDriver(QObject):
         except Exception as e:
             msg = "Error occurred in UsbWriter process: {}\n"
             Console.PrintError(msg.format(e))
+            
+    @Slot(unicode)
+    def on_position(self, line):
+        try:
+            if len(self.points) == 0:
+                self.points.append(self.last)
+            new = list(self.last)
+            for key, value in [l.split(":") for l in line.split(",")]:
+                if key == "posx":
+                    new[0] = float(value)
+                elif key == "posy":
+                    new[1] = float(value)
+                elif key == "posz":
+                    new[2] = float(value)
+            self.points.append(new)
+            self.last = list(new)
+            self.position.emit("Position: X:{} Y:{} Z:{}".format(new[0], new[1], new[2]))
+            if len(self.points) < self.pool.DrawSpeed:
+                return
+            po = list(self.points)
+            co = coin.SoCoordinate3()
+            co.point.setValues(0, len(po), po)
+            ma = coin.SoBaseColor()
+            ma.rgb = self.pool.DrawColor[0:3]
+            li = coin.SoLineSet()
+            li.numVertices.setValue(len(po))
+            no = coin.SoSeparator()
+            no.addChild(co)
+            no.addChild(ma)
+            no.addChild(li)
+            self.sg.addChild(no)
+            self.points = []
+        except Exception as e:
+            msg = "Error occurred in ViewCrtl process: {}\n"
+            Console.PrintError(msg.format(e))
 
- 
+
 class UsbReader(QObject):
 
     finished = Signal()
-    ctrl = Signal(unicode)
     data = Signal(unicode)
-    on_data = Signal(unicode)
+    position = Signal(unicode)    
+    freebuffer = Signal(unicode)    
+    claimbuffer = Signal(unicode)
 
+    
     def __init__(self, pool, buffers, mutex):
         QObject.__init__(self)
         self.run = True
         self.upload = False
         s = pool.Serials[0]
-        eol = pool.Proxy.getCharEndOfLine(pool) 
-        self.sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=eol)
+        self.eol = pool.Proxy.getCharEndOfLine(pool) 
+        self.sio = io.TextIOWrapper(io.BufferedRWPair(s, s), newline=self.eol)
         self.pool = pool
         self.buffers = buffers
         self.mutex = mutex
@@ -225,12 +262,15 @@ class UsbReader(QObject):
                 self.mutex.runreader.unlock()
                 line = self.sio.readline()
                 if len(line):
+                    line = line.strip()
                     self.mutex.upload.lock()
                     if self.upload:
                         self.mutex.upload.unlock()
                         if line.startswith("qr:"):
                             b = int(line.split(":")[-1])
-                            buffers = b - self.pool.Buffers if b > self.pool.Buffers else 0
+                            buffers = b - self.pool.Buffers\
+                                if b > self.pool.Buffers else 0
+                            self.freebuffer.emit("\tBuffers: {}".format(b))
                             self.mutex.buffers.lock()
                             self.buffers.free = buffers
                             if self.buffers.free > 0:
@@ -239,10 +279,10 @@ class UsbReader(QObject):
                                 self.buffers.gain.acquire()
                             else:
                                 self.mutex.buffers.unlock()
-                                self.on_data.emit("$qr")
-                            #continue
+                                self.claimbuffer.emit("$qr")
+                            continue
                         if line.startswith("pos"):
-                            self.ctrl.emit(line)
+                            self.position.emit(line)
                         self.mutex.buffers.lock()
                         if self.buffers.free > 0:
                             self.mutex.buffers.unlock()
@@ -251,7 +291,7 @@ class UsbReader(QObject):
                             self.mutex.buffers.unlock()
                     else:
                         self.mutex.upload.unlock()
-                    self.data.emit(line)
+                    self.data.emit(line + self.eol)
                 self.mutex.runreader.lock()    
             self.mutex.runreader.unlock()    
         except Exception as e:
@@ -266,8 +306,8 @@ class UsbReader(QObject):
 class UsbUploader(QObject):
 
     finished = Signal()
-    on_data = Signal(unicode)
     gcode = Signal(unicode)
+    claimbuffer = Signal(unicode)
 
     def __init__(self, pool, buffers, toggle, mutex):
         QObject.__init__(self)
@@ -286,7 +326,7 @@ class UsbUploader(QObject):
             s = self.pool.Serials[-1]
             sio = io.TextIOWrapper(io.BufferedRWPair(s, s))
             port = self.pool.Serials[-1].port
-            self.on_data.emit("$qr")
+            self.claimbuffer.emit("$qr")
             msg = "{} UsbUploader thread start on port {}... done\n"
             Console.PrintLog(msg.format(self.pool.Name, port))
             self.buffers.claim.acquire()
@@ -298,7 +338,7 @@ class UsbUploader(QObject):
                     self.buffers.free -= 1
                     if self.buffers.free == 0:
                         self.mutex.buffers.unlock()
-                        self.on_data.emit("$qr")
+                        self.claimbuffer.emit("$qr")
                         self.buffers.gain.release()
                         self.buffers.claim.acquire()
                     else:
@@ -306,7 +346,7 @@ class UsbUploader(QObject):
                     line = line.strip()
                     sio.write(line + eol)
                     sio.flush()
-                    self.gcode.emit("{}\t{}".format(i, line))
+                    self.gcode.emit("Line: {} GCode: {}".format(i, line))
                     self.mutex.paused.lock()
                     if self.paused:
                         self.toggle.wait(self.mutex.paused)

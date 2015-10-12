@@ -24,8 +24,8 @@
 """ GUI Terminal Dock object """
 from __future__ import unicode_literals
 
-from PySide.QtGui import QDockWidget, QWidget, QSplitter, QPlainTextEdit
-from PySide.QtGui import QTextOption, QTextCursor, QLabel, QVBoxLayout
+from PySide.QtGui import QDockWidget, QSplitter, QPlainTextEdit, QTextOption
+from PySide.QtGui import QTextCursor, QWidget, QLabel, QStatusBar, QVBoxLayout
 from PySide.QtCore import Qt, Signal, Slot
 
 
@@ -33,11 +33,12 @@ class InPutTextEdit(QPlainTextEdit):
 
     data = Signal(unicode)
 
-    def __init__(self):
+    def __init__(self, pool):
         QPlainTextEdit.__init__(self)
         self.setWordWrapMode(QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
         self.history = []
+        self.data.connect(pool.Thread.on_data)
 
     def getCommand(self):
         doc = self.document()
@@ -122,10 +123,11 @@ class InPutTextEdit(QPlainTextEdit):
 
 class OutPutTextEdit(QPlainTextEdit):
 
-    def __init__(self):
+    def __init__(self, pool):
         QPlainTextEdit.__init__(self)
         self.setWordWrapMode(QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
+        pool.Thread.data.connect(self.on_data)
 
     @Slot(unicode)
     def on_data(self, data):
@@ -135,51 +137,63 @@ class OutPutTextEdit(QPlainTextEdit):
 
 class TextEditWidget(OutPutTextEdit, InPutTextEdit):
 
-    def __init__(self):
-        InPutTextEdit.__init__(self)
+    def __init__(self, pool):
+        InPutTextEdit.__init__(self, pool)
+        pool.Thread.data.connect(self.on_data)
 
 
 class TerminalWidget(QWidget):
 
-    def __init__(self, driver):
+    def __init__(self, pool):
         QWidget.__init__(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        textEdit = TextEditWidget()
+        textEdit = TextEditWidget(pool)
         layout.addWidget(textEdit)
-        driver.data.connect(textEdit.on_data)
-        textEdit.data.connect(driver.on_data)
-        outputLabel = QLabel()
-        layout.addWidget(outputLabel)
-        driver.gcode.connect(outputLabel.setText)
+        bar = StatusBar(pool)
+        layout.addWidget(bar)        
 
 
 class DualTerminalWidget(QSplitter):
 
-    def __init__(self, driver):
+    def __init__(self, pool):
         QSplitter.__init__(self, Qt.Vertical)
-        outputText = OutPutTextEdit()
+        outputText = OutPutTextEdit(pool)
         self.addWidget(outputText)
-        inputText = InPutTextEdit()
+        inputText = InPutTextEdit(pool)
         self.addWidget(inputText)
-        driver.data.connect(outputText.on_data)
-        inputText.data.connect(driver.on_data)
-        outputLabel = QLabel()
-        self.addWidget(outputLabel)
-        driver.gcode.connect(outputLabel.setText)
+        bar = StatusBar(pool)
+        self.addWidget(bar)
 
+
+class StatusBar(QStatusBar):
+
+    def __init__(self, pool):
+        QStatusBar.__init__(self)
+        gcodeLabel = QLabel()
+        self.addWidget(gcodeLabel, 5)
+        gcodeLabel.setText("Line:  GCode:")
+        pool.Thread.gcode.connect(gcodeLabel.setText)
+        positionLabel = QLabel()
+        self.addPermanentWidget(positionLabel, 4)
+        positionLabel.setText("Position:  X:  Y:  Z:")
+        pool.Thread.position.connect(positionLabel.setText)
+        bufferLabel = QLabel()
+        self.addPermanentWidget(bufferLabel, 1)
+        bufferLabel.setText("\tBuffers:")
+        pool.Thread.freebuffer.connect(bufferLabel.setText)        
+ 
 
 class TerminalDock(QDockWidget):
 
-    def __init__(self, pool, driver):
+    def __init__(self, pool):
         QDockWidget.__init__(self)
         self.setObjectName("{}-{}".format(pool.Document.Name, pool.Name))
         self.setWindowTitle("{} terminal".format(pool.Label))
-        self.driver = driver
         if pool.DualView:
-            terminal = DualTerminalWidget(driver)
+            terminal = DualTerminalWidget(pool)
         else:
-            terminal = TerminalWidget(driver)
+            terminal = TerminalWidget(pool)
         self.setWidget(terminal)
         eol = pool.Proxy.getCharEndOfLine(pool)
-        driver.data.emit("Now, you are connected{}".format(eol))
+        pool.Thread.data.emit("Now, you are connected{}".format(eol))

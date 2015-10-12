@@ -28,8 +28,7 @@ from os import path
 from PySide.QtCore import QThread, Qt
 from PySide.QtGui import QDockWidget
 import FreeCAD, FreeCADGui
-import serial
-from UsbScripts import TerminalDock
+import serial, imp
 
 
 class Pool:
@@ -41,6 +40,11 @@ class Pool:
                         "Base",
                         "Array of PySerial port instance", 2)
         obj.Serials = None
+        obj.addProperty("App::PropertyPythonObject",
+                        "Thread",
+                        "Base",
+                        "QThread pointer", 2)
+        obj.Thread = None
         obj.addProperty("App::PropertyBool",
                         "Open",
                         "Base",
@@ -78,6 +82,16 @@ class Pool:
                         "End of line char (\\r, \\n, or \\r\\n)")
         obj.EndOfLine = self.getEndOfLine()
         obj.EndOfLine = b"LF"
+        obj.addProperty("App::PropertyInteger",
+                        "DrawSpeed",
+                        "Pool",
+                        "Number of position queued before draw")
+        obj.DrawSpeed = 5
+        obj.addProperty("App::PropertyColor",
+                        "DrawColor",
+                        "Pool",
+                        "Drawing color")
+        obj.DrawColor = (1.0, 0.0, 0.0)
         """ Usb terminal property """
         obj.addProperty("App::PropertyBool", "DualView", "Terminal",\
                         "Enable/disable terminal dualview")
@@ -112,14 +126,41 @@ class Pool:
     def execute(self, obj):
         pass
 
+    def getDriver(self, obj):
+        driver = None
+        class_name = "UsbDriver"
+        mod_name, file_ext = path.splitext(path.split(obj.Driver)[-1])
+        if file_ext.lower() == '.py':
+            mod = imp.load_source(mod_name, obj.Driver)
+        elif file_ext.lower() == '.pyc':
+            mod = imp.load_compiled(mod_name, obj.Driver)
+        if hasattr(mod, class_name):
+            driver = getattr(mod, class_name)(obj)
+        return driver
+            
     def onChanged(self, obj, prop):
+        if prop == "Thread":
+            if obj.Thread is None:
+                for s in obj.Serials:
+                    if s.is_open:
+                        s.close()
+                ports = [s.port for s in obj.Serials]
+                msg = "{} closing port {}... done\n"
+                FreeCAD.Console.PrintLog(msg.format(obj.Name, ports))                
+            elif obj.Serials is not None:
+                code = '''from PySide.QtCore import Qt
+from UsbScripts import TerminalDock
+pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+dock = TerminalDock.TerminalDock(pool)
+FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, dock)'''
+                FreeCADGui.doCommand(code)
         if prop == "DualPort":
             while len(obj.Group) < int(obj.DualPort) + 1:
                 FreeCADGui.runCommand("Usb_Port")
         if prop == "Serials":
             if obj.Serials is None:
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
-                docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
+                docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname) 
                 for d in docks:
                     d.setParent(None)
                     d.close()
@@ -136,51 +177,38 @@ class Pool:
                     for s in obj.Serials:
                         s.open()
                 except serial.SerialException as e:
-                    FreeCAD.Console.PrintError("Error occurred opening port: {}\n".format(e))
+                    msg = "Error occurred opening port: {}\n"
+                    FreeCAD.Console.PrintError(msg.format(e))
+                    obj.Serials = None
                     obj.Open = False
                     return
                 ports = [s.port for s in obj.Serials]
-                FreeCAD.Console.PrintLog("{} opening port {}... done\n".format(obj.Name, ports))
-                module = path.splitext(path.basename(obj.Driver))[0]
-                code = "from UsbScripts.Drivers import {} as UsbDriver\n".format(module)
-                code = code + '''from PySide.QtCore import Qt
-from UsbScripts import TerminalDock
-pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-driver = UsbDriver.UsbDriver(pool)
-dock = TerminalDock.TerminalDock(pool, driver)
-FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, dock)'''
-                FreeCADGui.doCommand(code)
-                objname = "{}-{}".format(obj.Document.Name, obj.Name)
-                dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)
-                dock.driver.open()
-            else:
-                #if obj.Serials is None:
-                #    return
-                objname = "{}-{}".format(obj.Document.Name, obj.Name)
-                dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)
-                dock.driver.close()
+                msg = "{} opening port {}... done\n"
+                FreeCAD.Console.PrintLog(msg.format(obj.Name, ports))
+                obj.Thread = self.getDriver(obj)
+                if obj.Thread is None:
+                    return
+                obj.Thread.open()
+            elif obj.Thread is not None:
+                obj.Thread.close()
         if prop == "Start":
-            objname = "{}-{}".format(obj.Document.Name, obj.Name)
-            dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname)
-            if dock is None:
+            if obj.Thread is None or obj.Serials is None:
                 if obj.Start:
                     obj.Start = False
                 return
             if obj.Start:
-                dock.driver.start()
+                obj.Thread.start()
             else:
-                dock.driver.stop()
+                obj.Thread.stop()
         if prop == "Pause":
-            objname = "{}-{}".format(obj.Document.Name, obj.Name)
-            dock = FreeCADGui.getMainWindow().findChild(QDockWidget, objname) 
-            if dock is None:
+            if obj.Thread is None or obj.Serials is None:
                 if obj.Pause:
-                    obj.Pause = False                
-                return            
+                    obj.Pause = False
+                return
             if obj.Pause:
-                dock.driver.pause()
+                obj.Thread.pause()
             else:
-                dock.driver.resume()
+                obj.Thread.resume()
                 
 
 class _ViewProviderPool:
@@ -218,7 +246,7 @@ class CommandUsbPool:
     def GetResources(self):
         return {b'Pixmap'  : b"icons:Usb-Pool.xpm",
                 b'MenuText': b"New Pool",
-                b'Accel'   : b"U, L",
+                b'Accel'   : b"U, N",
                 b'ToolTip' : b"New Pool"}
 
     def IsActive(self):
