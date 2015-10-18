@@ -21,55 +21,60 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Gui workbench initialization """
+""" TinyG2 ViewProvider Plugin object """
 from __future__ import unicode_literals
 
+import FreeCADGui
+from PySide import QtGui
 
-class UsbWorkbench(Workbench):
-    "USB workbench object"
-    Icon = b"""
-        /* XPM */
-        static const char * const start_xpm[]={
-        "16 16 3 1",
-        ".      c None",
-        "#      c #FFFFFF",
-        "$      c #000000",
-        "................",
-        ".......$$#......",
-        "......$$$$#.#...",
-        "....#..$$#.$$#..",
-        "...$$#.$$#$$$$#.",
-        "..$$$$#$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#$$#...",
-        "...$$#.$$$##....",
-        "....$$#$$#......",
-        "......$$$#......",
-        ".......$$##.....",
-        ".....$$$$$$#....",
-        ".....$$$$$$#....",
-        "................"};
-        """
-    MenuText = "USB"
-    ToolTip = "Python USB workbench"
 
-    def Initialize(self):
-        from Gui import initIcons
-        from App import UsbPool, UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
-        # Add commands to menu and toolbar
-        self.appendToolbar("Commands for Usb", commands)
-        self.appendMenu([b"USB"], commands)
-        Log('Loading USB workbench... done\n')
+class UsbPoolPanel:
 
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
+    def __init__(self, pool):
+        self.form = UsbPoolTaskPanel(pool)
 
-    def Activated(self):
-        Log("USB workbench activated\n")
+    def accept(self):
+        FreeCADGui.ActiveDocument.resetEdit()
+        return True
 
-    def Deactivated(self):
-        Log("USB workbench deactivated\n")
+    def reject(self):
+        FreeCADGui.ActiveDocument.resetEdit()
+        return True
 
-Gui.addWorkbench(UsbWorkbench())
+    def clicked(self, index):
+        pass
+
+    def open(self):
+        pass
+
+    def needsFullSpace(self):
+        return False
+
+    def isAllowedAlterSelection(self):
+        return True
+
+    def isAllowedAlterView(self):
+        return True
+
+    def isAllowedAlterDocument(self):
+        return True
+
+    def getStandardButtons(self):
+        return int(QtGui.QDialogButtonBox.Ok)
+        #return int(QtGui.QDialogButtonBox.Ok|QtGui.QDialogButtonBox.Cancel)
+
+    def helpRequested(self):
+        pass
+
+
+class UsbPoolTaskPanel(QtGui.QGroupBox):
+
+    def __init__(self, pool):
+        QtGui.QGroupBox.__init__(self)
+        self.setObjectName("TinyG2-Monitor")
+        self.setWindowTitle("TinyG2 Monitor")
+        self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
+        layout = QtGui.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        label = QtGui.QLabel("Hello word!!!")
+        layout.addWidget(label)

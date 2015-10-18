@@ -24,7 +24,46 @@
 """ USB command object """
 from __future__ import unicode_literals
 
-import FreeCAD, FreeCADGui
+import FreeCAD
+
+if FreeCAD.GuiUp:
+    import FreeCADGui
+
+
+def getObjectType(obj):
+    if not obj or (obj.TypeId != "App::DocumentObjectGroupPython"
+                   and obj.TypeId != "App::FeaturePython"):
+        return None
+    if "Proxy" in obj.PropertiesList:
+        if hasattr(obj.Proxy, "Type"):
+            return obj.Proxy.Type
+    return None
+
+
+class CommandPool:
+
+    def GetResources(self):
+        return {b'Pixmap'  : b"icons:Usb-Pool.xpm",
+                b'MenuText': b"New Pool",
+                b'Accel'   : b"U, N",
+                b'ToolTip' : b"New Pool"}
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        if FreeCAD.ActiveDocument is None:
+            FreeCAD.newDocument()
+        FreeCAD.ActiveDocument.openTransaction(b"New Pool")
+        #FreeCADGui.addModule(b"App.UsbPool")
+        code = '''from App import UsbPool
+from Gui import DefaultGui as UsbPoolGui
+obj = FreeCAD.ActiveDocument.addObject("App::DocumentObjectGroupPython", "Pool")
+UsbPool.Pool(obj)
+UsbPoolGui._ViewProviderPool(obj.ViewObject)'''
+        FreeCADGui.doCommand(code)
+        FreeCAD.ActiveDocument.commitTransaction()
+        FreeCAD.ActiveDocument.recompute()
 
 
 class CommandRefresh:
@@ -39,22 +78,18 @@ class CommandRefresh:
         return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
-        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(selection) == 0:
+        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+        if not len(s):
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
-        obj = selection[0]
-        from UsbScripts import UsbPool
-        from UsbScripts import UsbPort
-        if obj.isDerivedFrom("App::DocumentObjectGroupPython")\
-           and isinstance(obj.Proxy, UsbPool.Pool):
-            code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-for port in pool.Group:
-    port.Update = ["Port", "Baudrate"]'''
-        elif obj.isDerivedFrom("App::FeaturePython")\
-             and isinstance(obj.Proxy, UsbPort.Port):
-            code = '''port = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-port.Update = ["Port", "Baudrate"]'''
+        obj = s[0]
+        if getObjectType(obj) == "App::UsbPool":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+for o in obj.Serials:
+    o.Update = ["Port", "Baudrate"]'''
+        elif getObjectType(obj) == "App::UsbPort":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.Update = ["Port", "Baudrate"]'''
         else:
             FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
             return
@@ -74,18 +109,20 @@ class CommandOpen:
         return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
-        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(selection) == 0:
+        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+        if len(s) == 0:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
-        obj = selection[0]
-        from UsbScripts import UsbPool
-        if not obj.isDerivedFrom("App::DocumentObjectGroupPython")\
-           or not isinstance(obj.Proxy, UsbPool.Pool):
-            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
+        obj = s[0]
+        if getObjectType(obj) == "App::UsbPool":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.Open = not obj.Open'''
+        elif getObjectType(obj) == "App::UsbPort":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.InList[0].Open = not obj.InList[0].Open'''
+        else:
+            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
             return
-        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Open = not pool.Open'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 
@@ -102,19 +139,22 @@ class CommandStart:
         return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
-        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(selection) == 0:
+        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+        if not len(s):
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
-        pool = selection[0]
-        from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython")\
-           or not isinstance(pool.Proxy, UsbPool.Pool):
-            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
+        obj = s[0]
+        if getObjectType(obj) == "App::UsbPool":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.Start = not obj.Start'''
+        elif getObjectType(obj) == "App::UsbPort":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.InList[0].Start = not obj.InList[0].Start'''
+        else:
+            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
             return
-        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Start = not pool.Start'''
         FreeCADGui.doCommand(code)
+        FreeCAD.ActiveDocument.recompute()
 
 
 class CommandPause:
@@ -129,23 +169,27 @@ class CommandPause:
         return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
-        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(selection) == 0:
+        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+        if len(s) == 0:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
-        pool = selection[0]
-        from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython")\
-           or not isinstance(pool.Proxy, UsbPool.Pool):
-            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
+        obj = s[0]
+        if getObjectType(obj) == "App::UsbPool":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.Pause = not obj.Pause'''
+        elif getObjectType(obj) == "App::UsbPort":
+            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+obj.InList[0].Pause = not obj.InList[0].Pause'''
+        else:
+            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
             return
-        code = '''pool = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-pool.Pause = not pool.Pause'''
         FreeCADGui.doCommand(code)
+        FreeCAD.ActiveDocument.recompute()
 
 
 if FreeCAD.GuiUp:
     # register the FreeCAD command
+    FreeCADGui.addCommand('Usb_Pool', CommandPool())
     FreeCADGui.addCommand('Usb_Refresh', CommandRefresh())
     FreeCADGui.addCommand('Usb_Open', CommandOpen())
     FreeCADGui.addCommand('Usb_Start', CommandStart())

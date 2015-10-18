@@ -21,22 +21,29 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Port document object """
+""" UsbPort document object """
 from __future__ import unicode_literals
 
-import FreeCAD, FreeCADGui
 import serial
 from serial.tools import list_ports
+import FreeCAD
 
 
 class Port:
 
     def __init__(self, obj):
+        self.Type = "App::UsbPort"
+        """ PySerial port object instance property """
+        obj.addProperty("App::PropertyPythonObject",
+                        "Async",
+                        "Base",
+                        "PySerial Serial port instance", 2)
+        obj.Async = None
         """ Internal property for management of data update """
         obj.addProperty("App::PropertyStringList",
                         "Update",
                         "Base",
-                        "Feature list of port to update", 2, True, True)
+                        "List of PySerial property to update", 2, True, True)
         """ PySerial discovered port tools """
         obj.addProperty("App::PropertyEnumeration",
                         "Details",
@@ -134,7 +141,7 @@ class Port:
     def refreshPorts(self, obj):
         index = self.getPortsIndex(obj)
         obj.Ports = self.getPorts(obj)
-        if index != -1: 
+        if index != -1:
             obj.Ports = index
 
     def refreshBaudrate(self, obj):
@@ -142,17 +149,31 @@ class Port:
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = baudrate
 
+    def getSettingsDict(self, obj):
+        return {b"port" : b"{}".format(obj.Port),
+                b"baudrate" : int(obj.Baudrate),
+                b"bytesize" : int(obj.ByteSize),
+                b"parity" : b"{}".format(obj.Parity),
+                b"stopbits" : float(obj.StopBits),
+                b"xonxoff" : obj.XonXoff,
+                b"rtscts" : obj.RtsCts,
+                b"dsrdtr" : obj.DsrDtr,
+                b"timeout" : None if obj.Timeout < 0 else obj.Timeout,
+                b"write_timeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
+                b"inter_byte_timeout" : None if obj.InterByteTimeout < 0 else obj.InterByteTimeout}
+
     def execute(self, obj):
-        if not obj.Update:
-            return
-        for name in obj.Update:
-            if name == "Port":
+        if obj.Update:
+            if "Port" in obj.Update:
                 self.refreshPorts(obj)
-            if name == "Baudrate":
+            if "Baudrate" in obj.Update:
                 self.refreshBaudrate(obj)
-        obj.Update = []
+            obj.Update = []
 
     def onChanged(self, obj, prop):
+        if prop == "Async":
+            if obj.Async is not None:
+                obj.Async.apply_settings(self.getSettingsDict(obj))
         if prop == "Details":
             obj.Update = ["Port"]
             self.refreshPorts(obj)
@@ -163,74 +184,42 @@ class Port:
                     obj.Port = obj.Ports
                 else:
                     obj.Port = "hwgrep://" + obj.Ports
+        if prop == "Baudrate":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.baudrate = obj.Baudrate
+        if prop == "ByteSize":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.bytesize = obj.ByteSize
+        if prop == "DsrDtr":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.dsrdtr = obj.DsrDtr
+        if prop == "InterByteTimeout":
+            if obj.Async is not None and obj.Async.is_open:
+                timeout = None if obj.InterByteTimeout < 0 else obj.InterByteTimeout
+                obj.Async.inter_byte_timeout = timeout
+        if prop == "Parity":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.parity = obj.Parity
+        if prop == "Port":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.port = obj.Port
+        if prop == "RtsCts":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.rtscts = obj.RtsCts
+        if prop == "StopBits":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.stopbits = float(obj.StopBits)
+        if prop == "Timeout":
+            if obj.Async is not None and obj.Async.is_open:
+                timeout = None if obj.Timeout < 0 else obj.Timeout
+                obj.Async.timeout = timeout
+        if prop == "WriteTimeout":
+            if obj.Async is not None and obj.Async.is_open:
+                timeout = None if obj.WriteTimeout < 0 else obj.WriteTimeout
+                obj.Async.write_timeout = timeout
+        if prop == "XonXoff":
+            if obj.Async is not None and obj.Async.is_open:
+                obj.Async.xonxoff = obj.XonXoff
 
-
-class _ViewProviderPort:
-
-    def __init__(self, vobj): #mandatory
-        vobj.Proxy = self
-
-    def __getstate__(self): #mandatory
-        return None
-
-    def __setstate__(self, state): #mandatory
-        return None
-
-    def getIcon(self):
-        return "icons:Usb-Port.xpm"
-
-    def onChanged(self, vobj, prop): #optional
-        pass
-
-    def updateData(self, vobj, prop): #optional
-        # this is executed when a property of the APP OBJECT changes
-        pass
-
-    def setEdit(self, vobj, mode): #optional
-        # this is executed when the object is double-clicked in the tree
-        pass
-
-    def unsetEdit(self, vobj, mode): #optional
-        # this is executed when the user cancels or terminates edit mode
-        pass
-
-
-class CommandUsbPort:
-
-    def GetResources(self):
-        return {b'Pixmap'  : b"icons:Usb-Port.xpm",
-                b'MenuText': b"New Port",
-                b'Accel'   : b"U, U",
-                b'ToolTip' : b"New Port"}
-
-    def IsActive(self):
-        return not FreeCAD.ActiveDocument is None
-
-    def Activated(self):
-        selection = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(selection) == 0:
-            FreeCAD.Console.PrintError("Selection has no elements!\n")
-            return
-        pool = selection[0]
-        from UsbScripts import UsbPool
-        if not pool.isDerivedFrom("App::DocumentObjectGroupPython")\
-           or not isinstance(pool.Proxy, UsbPool.Pool):
-            FreeCAD.Console.PrintError("Selection is not a Pool!\n")
-            return
-        FreeCAD.ActiveDocument.openTransaction(b"New Port")
-        FreeCADGui.addModule(b"UsbScripts.UsbPort")
-        code = '''from UsbScripts import UsbPort
-obj = FreeCAD.ActiveDocument.addObject("App::FeaturePython", "Port")
-UsbPort.Port(obj)
-UsbPort._ViewProviderPort(obj.ViewObject)
-FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0].addObject(obj)'''
-        FreeCADGui.doCommand(code)
-        FreeCAD.ActiveDocument.commitTransaction()
-        FreeCAD.ActiveDocument.recompute()
-
-
-if FreeCAD.GuiUp: 
-    # register the FreeCAD command
-    FreeCADGui.addCommand('Usb_Port', CommandUsbPort())
 
 FreeCAD.Console.PrintLog("Loading UsbPort... done\n")

@@ -21,55 +21,47 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Gui workbench initialization """
+""" TinyG2 Gui and Driver Plugin """
 from __future__ import unicode_literals
 
+import FreeCAD
+from os import path
+from App import TinyG2Driver as UsbPoolDriver
+if FreeCAD.GuiUp:
+    from Gui import TinyG2Gui as UsbPoolGui
+    from Gui import TinyG2Panel as UsbPoolPanel
 
-class UsbWorkbench(Workbench):
-    "USB workbench object"
-    Icon = b"""
-        /* XPM */
-        static const char * const start_xpm[]={
-        "16 16 3 1",
-        ".      c None",
-        "#      c #FFFFFF",
-        "$      c #000000",
-        "................",
-        ".......$$#......",
-        "......$$$$#.#...",
-        "....#..$$#.$$#..",
-        "...$$#.$$#$$$$#.",
-        "..$$$$#$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#$$#...",
-        "...$$#.$$$##....",
-        "....$$#$$#......",
-        "......$$$#......",
-        ".......$$##.....",
-        ".....$$$$$$#....",
-        ".....$$$$$$#....",
-        "................"};
-        """
-    MenuText = "USB"
-    ToolTip = "Python USB workbench"
 
-    def Initialize(self):
-        from Gui import initIcons
-        from App import UsbPool, UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
-        # Add commands to menu and toolbar
-        self.appendToolbar("Commands for Usb", commands)
-        self.appendMenu([b"USB"], commands)
-        Log('Loading USB workbench... done\n')
+''' Add/Delete Object Plugin custom property '''
+def InitializePlugin(obj):
+    for p in obj.PropertiesList:
+        if obj.getGroupOfProperty(p) in ["Plugin", "Pool"]:
+            if p not in ["Buffers", "UploadFile", "Plugin", "DualPort", "EndOfLine"]:
+                obj.removeProperty(p)
+    if "ReadOnly" in obj.getEditorMode("DualPort"):
+        obj.setEditorMode("DualPort", 0)
+    if "Buffers" not in obj.PropertiesList:
+        obj.addProperty("App::PropertyInteger",
+                        "Buffers",
+                        "Pool",
+                        "Upload file buffers to keep free")
+        obj.Buffers = 5
+    if "UploadFile" not in obj.PropertiesList:
+        obj.addProperty("App::PropertyFile",
+                        "UploadFile",
+                        "Pool",
+                        "Files to upload")
+        p = path.dirname(__file__) + "/../Examples/boomerangv4.ncc"
+        obj.UploadFile = path.abspath(p)
+    if FreeCAD.GuiUp:
+        UsbPoolGui._ViewProviderPool(obj.ViewObject)
 
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
 
-    def Activated(self):
-        Log("USB workbench activated\n")
+def getUsbThread(obj):
+    return UsbPoolDriver.UsbThread(obj)
 
-    def Deactivated(self):
-        Log("USB workbench deactivated\n")
 
-Gui.addWorkbench(UsbWorkbench())
+def getUsbPoolPanel(obj):
+    if FreeCAD.GuiUp:
+        return UsbPoolPanel.UsbPoolPanel(obj)
+    return None

@@ -170,17 +170,29 @@ class StatusBar(QStatusBar):
 
     def __init__(self, pool):
         QStatusBar.__init__(self)
+        self.addWidget(QLabel("Line:"))
+        lineLabel = QLabel()
+        self.addWidget(lineLabel)
+        pool.Thread.line.connect(lineLabel.setText) 
+        self.addWidget(QLabel("GCode:"))
         gcodeLabel = QLabel()
-        self.addWidget(gcodeLabel, 5)
-        gcodeLabel.setText("Line:  GCode:")
+        self.addWidget(gcodeLabel, 1)
         pool.Thread.gcode.connect(gcodeLabel.setText)
-        positionLabel = QLabel()
-        self.addPermanentWidget(positionLabel, 4)
-        positionLabel.setText("Position:  X:  Y:  Z:")
-        pool.Thread.position.connect(positionLabel.setText)
+        self.addPermanentWidget(QLabel("X:"))
+        pointxLabel = QLabel()
+        self.addPermanentWidget(pointxLabel)
+        pool.Thread.pointx.connect(pointxLabel.setText)
+        self.addPermanentWidget(QLabel("Y:"))
+        pointyLabel = QLabel()
+        self.addPermanentWidget(pointyLabel)
+        pool.Thread.pointy.connect(pointyLabel.setText)
+        self.addPermanentWidget(QLabel("Z:"))
+        pointzLabel = QLabel()
+        self.addPermanentWidget(pointzLabel, 1)
+        pool.Thread.pointz.connect(pointzLabel.setText)
+        self.addPermanentWidget(QLabel("Buffers:"))
         bufferLabel = QLabel()
-        self.addPermanentWidget(bufferLabel, 1)
-        bufferLabel.setText("\tBuffers:")
+        self.addPermanentWidget(bufferLabel)
         pool.Thread.freebuffer.connect(bufferLabel.setText)        
  
 
@@ -190,7 +202,7 @@ class TerminalDock(QDockWidget):
         QDockWidget.__init__(self)
         self.setObjectName("{}-{}".format(pool.Document.Name, pool.Name))
         self.setWindowTitle("{} terminal".format(pool.Label))
-        if pool.DualView:
+        if pool.ViewObject.DualView:
             terminal = DualTerminalWidget(pool)
         else:
             terminal = TerminalWidget(pool)

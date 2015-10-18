@@ -21,55 +21,28 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Gui workbench initialization """
+""" Pool Gui and Driver Plugin """
 from __future__ import unicode_literals
 
+import FreeCAD
+from App import DefaultDriver as UsbPoolDriver
+if FreeCAD.GuiUp:
+    from Gui import DefaultGui as UsbPoolGui
 
-class UsbWorkbench(Workbench):
-    "USB workbench object"
-    Icon = b"""
-        /* XPM */
-        static const char * const start_xpm[]={
-        "16 16 3 1",
-        ".      c None",
-        "#      c #FFFFFF",
-        "$      c #000000",
-        "................",
-        ".......$$#......",
-        "......$$$$#.#...",
-        "....#..$$#.$$#..",
-        "...$$#.$$#$$$$#.",
-        "..$$$$#$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#$$#...",
-        "...$$#.$$$##....",
-        "....$$#$$#......",
-        "......$$$#......",
-        ".......$$##.....",
-        ".....$$$$$$#....",
-        ".....$$$$$$#....",
-        "................"};
-        """
-    MenuText = "USB"
-    ToolTip = "Python USB workbench"
 
-    def Initialize(self):
-        from Gui import initIcons
-        from App import UsbPool, UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
-        # Add commands to menu and toolbar
-        self.appendToolbar("Commands for Usb", commands)
-        self.appendMenu([b"USB"], commands)
-        Log('Loading USB workbench... done\n')
+''' Add/Delete Object Plugin custom property '''
+def InitializePlugin(obj):
+    for p in obj.PropertiesList:
+        if obj.getGroupOfProperty(p) in ["Plugin", "Pool"]:
+            if p not in ["Plugin", "DualPort", "EndOfLine"]:
+                obj.removeProperty(p)
+    if "ReadOnly" not in obj.getEditorMode("DualPort"):
+        obj.setEditorMode("DualPort", 1)    
+    if obj.DualPort:
+        obj.DualPort = False
+    if FreeCAD.GuiUp:
+        UsbPoolGui._ViewProviderPool(obj.ViewObject)
 
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
 
-    def Activated(self):
-        Log("USB workbench activated\n")
-
-    def Deactivated(self):
-        Log("USB workbench deactivated\n")
-
-Gui.addWorkbench(UsbWorkbench())
+def getUsbThread(obj):
+    return UsbPoolDriver.UsbThread(obj)

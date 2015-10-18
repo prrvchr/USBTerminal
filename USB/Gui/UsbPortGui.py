@@ -21,55 +21,55 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Gui workbench initialization """
+""" UsbPort ViewProvider document object """
 from __future__ import unicode_literals
 
+import FreeCADGui
+from PySide import QtGui
+from Gui import UsbPortPanel
 
-class UsbWorkbench(Workbench):
-    "USB workbench object"
-    Icon = b"""
-        /* XPM */
-        static const char * const start_xpm[]={
-        "16 16 3 1",
-        ".      c None",
-        "#      c #FFFFFF",
-        "$      c #000000",
-        "................",
-        ".......$$#......",
-        "......$$$$#.#...",
-        "....#..$$#.$$#..",
-        "...$$#.$$#$$$$#.",
-        "..$$$$#$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#$$#...",
-        "...$$#.$$$##....",
-        "....$$#$$#......",
-        "......$$$#......",
-        ".......$$##.....",
-        ".....$$$$$$#....",
-        ".....$$$$$$#....",
-        "................"};
-        """
-    MenuText = "USB"
-    ToolTip = "Python USB workbench"
+    
+class _ViewProviderPort:
 
-    def Initialize(self):
-        from Gui import initIcons
-        from App import UsbPool, UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
-        # Add commands to menu and toolbar
-        self.appendToolbar("Commands for Usb", commands)
-        self.appendMenu([b"USB"], commands)
-        Log('Loading USB workbench... done\n')
+    def __init__(self, vobj): #mandatory
+        self.Type = "Gui::UsbPort"
+        vobj.Proxy = self
 
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
+    def __getstate__(self): #mandatory
+        return None
 
-    def Activated(self):
-        Log("USB workbench activated\n")
+    def __setstate__(self, state): #mandatory
+        return None
+    
+    def attach(self, vobj):
+        pass
+    
+    def getIcon(self):
+        return "icons:Usb-Port.xpm"
 
-    def Deactivated(self):
-        Log("USB workbench deactivated\n")
+    def onChanged(self, vobj, prop): #optional
+        pass
 
-Gui.addWorkbench(UsbWorkbench())
+    def updateData(self, vobj, prop): #optional
+        # this is executed when a property of the APP OBJECT changes
+        pass
+
+    def setEdit(self, vobj, mode):
+        # this is executed when the object is double-clicked in the tree
+        taskPanel = UsbPortPanel.UsbPortPanel(vobj.Object.InList[0])
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        FreeCADGui.Control.showDialog(taskPanel)
+        return True
+
+    def unsetEdit(self, vobj, mode):
+        # this is executed when the user cancels or terminates edit mode        
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+            return True
+        return False
+    
+    def doubleClicked(self, vobj):
+        vobj.Proxy.setEdit(vobj, 0)
+        return True
+

@@ -21,55 +21,60 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Gui workbench initialization """
+""" Minimal Pool default ViewProvider Plugin object """
 from __future__ import unicode_literals
 
+import FreeCADGui
 
-class UsbWorkbench(Workbench):
-    "USB workbench object"
-    Icon = b"""
-        /* XPM */
-        static const char * const start_xpm[]={
-        "16 16 3 1",
-        ".      c None",
-        "#      c #FFFFFF",
-        "$      c #000000",
-        "................",
-        ".......$$#......",
-        "......$$$$#.#...",
-        "....#..$$#.$$#..",
-        "...$$#.$$#$$$$#.",
-        "..$$$$#$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#.$$#..",
-        "...$$#.$$#$$#...",
-        "...$$#.$$$##....",
-        "....$$#$$#......",
-        "......$$$#......",
-        ".......$$##.....",
-        ".....$$$$$$#....",
-        ".....$$$$$$#....",
-        "................"};
-        """
-    MenuText = "USB"
-    ToolTip = "Python USB workbench"
 
-    def Initialize(self):
-        from Gui import initIcons
-        from App import UsbPool, UsbCommand
-        commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
-        # Add commands to menu and toolbar
-        self.appendToolbar("Commands for Usb", commands)
-        self.appendMenu([b"USB"], commands)
-        Log('Loading USB workbench... done\n')
+class _ViewProviderPool:
 
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
+    def __init__(self, vobj): #mandatory
+        self.Type = "Gui::UsbPool"
+        for p in vobj.PropertiesList:
+            if vobj.getGroupOfProperty(p) != "Base":
+                if p not in ["DualView"]:
+                    vobj.removeProperty(p)
+        if "DualView" not in vobj.PropertiesList:
+            vobj.addProperty("App::PropertyBool",
+                             "DualView",
+                             "Terminal",
+                             "Enable/disable terminal dualview")
+            vobj.DualView = False
+        self.Object = vobj.Object
+        vobj.Proxy = self
 
-    def Activated(self):
-        Log("USB workbench activated\n")
+    def __getstate__(self): #mandatory
+        return None
 
-    def Deactivated(self):
-        Log("USB workbench deactivated\n")
+    def __setstate__(self, state): #mandatory
+        return None
 
-Gui.addWorkbench(UsbWorkbench())
+    def attach(self, vobj):
+        self.Type = "Gui::UsbPool"
+        self.Object = vobj.Object
+        return
+
+    def getIcon(self):
+        return "icons:Usb-Pool.xpm"
+
+    def onChanged(self, vobj, prop): #optional
+        pass
+
+    def updateData(self, obj, prop): #optional
+        # this is executed when a property of the APP OBJECT changes
+        obj.Proxy.updateDataView(obj, prop)
+
+    def setEdit(self, vobj, mode=0):
+        # this is executed when the object is double-clicked in the tree
+        pass
+
+    def unsetEdit(self, vobj, mode=0):
+        # this is executed when the user cancels or terminates edit mode
+        pass
+
+    def doubleClicked(self, vobj):
+        pass
+
+    def claimChildren(self):
+        return  self.Object.Serials
