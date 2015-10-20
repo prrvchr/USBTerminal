@@ -27,10 +27,10 @@ from __future__ import unicode_literals
 import FreeCAD
 from App import DefaultDriver as UsbPoolDriver
 if FreeCAD.GuiUp:
-    from Gui import DefaultGui as UsbPoolGui
+    from Gui import UsbPoolGui, UsbPoolPanel
 
 
-''' Add/Delete Object Plugin custom property '''
+''' Add/Delete App Object Plugin custom property '''
 def InitializePlugin(obj):
     for p in obj.PropertiesList:
         if obj.getGroupOfProperty(p) in ["Plugin", "Pool"]:
@@ -46,3 +46,8 @@ def InitializePlugin(obj):
 
 def getUsbThread(obj):
     return UsbPoolDriver.UsbThread(obj)
+
+def getUsbPoolPanel(obj):
+    if FreeCAD.GuiUp:
+        return UsbPoolPanel.UsbPoolPanel(obj)
+    return None

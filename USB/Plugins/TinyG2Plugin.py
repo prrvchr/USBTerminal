@@ -32,7 +32,7 @@ if FreeCAD.GuiUp:
     from Gui import TinyG2Panel as UsbPoolPanel
 
 
-''' Add/Delete Object Plugin custom property '''
+''' Add/Delete App Object Plugin custom property '''
 def InitializePlugin(obj):
     for p in obj.PropertiesList:
         if obj.getGroupOfProperty(p) in ["Plugin", "Pool"]:

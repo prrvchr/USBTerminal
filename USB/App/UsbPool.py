@@ -25,14 +25,13 @@
 from __future__ import unicode_literals
 
 from os import path
-import serial, imp
+import serial 
+import imp
 import FreeCAD
-from PySide.QtCore import Qt
 from App import UsbPort
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from PySide.QtGui import QDockWidget
-    from Gui import UsbPortGui, TerminalDock
+
 
 
 class Pool:
@@ -40,15 +39,16 @@ class Pool:
     def __init__(self, obj):
         self.Type = "App::UsbPool"
         self.plugin = False
-        """ QThread object instance property """
-        obj.addProperty("App::PropertyPythonObject",
-                        "Thread",
-                        "Base",
-                        "QThread driver pointer", 2)
-        obj.Thread = None
+        """ Usb Plugin driver property """
+        obj.addProperty("App::PropertyFile",
+                        "Plugin",
+                        "Plugin",
+                        "Application Plugin driver")
+        p = path.dirname(__file__) + "/../Plugins/DefaultPlugin.py"
+        obj.Plugin = path.abspath(p)
         """ Link to UsbPort document object """
         obj.addProperty("App::PropertyLinkList",
-                        "Serials",
+                        "Asyncs",
                         "Base",
                         "Link to UsbPort document object")
         """ Usb Base driving property """
@@ -67,13 +67,6 @@ class Pool:
                         "Base",
                         "Pause/resume file upload", 2)
         obj.Pause = False
-        """ Usb Plugin driver property """
-        obj.addProperty("App::PropertyFile",
-                        "Plugin",
-                        "Plugin",
-                        "Application Plugin driver")
-        p = path.dirname(__file__) + "/../Plugins/DefaultPlugin.py"
-        obj.Plugin = path.abspath(p)
         """ Usb Pool property """
         obj.addProperty("App::PropertyBool",
                         "DualPort",
@@ -87,7 +80,21 @@ class Pool:
                         "End of line char (\\r, \\n, or \\r\\n)")
         obj.EndOfLine = self.getEndOfLine()
         obj.EndOfLine = b"LF"
+        """ QThread object instance property """
+        obj.addProperty("App::PropertyPythonObject",
+                        "Process",
+                        "Base",
+                        "QThread process driver pointer", 2)
+        obj.Process = None
         obj.Proxy = self
+        
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self, state):
+        self.Type = "App::UsbPool"
+        self.plugin = False
+        return None
 
     def getEndOfLine(self):
         return [b"CR",b"LF",b"CRLF"]
@@ -109,37 +116,14 @@ class Pool:
             classInstance = getattr(module, attr)(obj)
         return classInstance
 
-    def getObjectViewType(self, vobj):
-        if not vobj or vobj.TypeId != "Gui::ViewProviderPythonFeature":
-            return None
-        if "Proxy" in vobj.PropertiesList:
-            if hasattr(vobj.Proxy, "Type"):
-                return vobj.Proxy.Type
-        return None
-
-    def updateDataView(self, obj, prop):
-        if prop == "Thread":
-            if obj.Thread is None:
-                objname = "{}-{}".format(obj.Document.Name, obj.Name)
-                docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname) 
-                for d in docks:
-                    d.setParent(None)
-                    d.close()
-            elif obj.Serials[0].Async is not None:
-                dock = TerminalDock.TerminalDock(obj)
-                FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, dock)
-        elif prop == "Serials":
-            for o in obj.Serials:
-                if self.getObjectViewType(o.ViewObject) is None:
-                    UsbPortGui._ViewProviderPort(o.ViewObject)
-
     def execute(self, obj):
-        if len(obj.Serials) < int(obj.DualPort) + 1:
+        if len(obj.Asyncs) < int(obj.DualPort) + 1:
             FreeCAD.ActiveDocument.openTransaction(b"New Port")
             o = FreeCAD.ActiveDocument.addObject("App::FeaturePython", "Port")
             UsbPort.Port(o)
-            #UsbPortGui._ViewProviderPort(o.ViewObject) is made in Plugin updateData(Serials) calling self.updateDataView
-            obj.Serials += [o]
+            # UsbPortGui._ViewProviderPort(o.ViewObject) is made with the Asyncs
+            # property change in Gui part of Plugin: updateData()
+            obj.Asyncs += [o]
             FreeCAD.ActiveDocument.commitTransaction()
             FreeCAD.ActiveDocument.recompute()
         if self.plugin:
@@ -154,59 +138,30 @@ class Pool:
         if prop == "Plugin":
             if obj.Plugin:
                 self.plugin = True
-        if prop == "Thread":
-            if obj.Thread is None:
-                msg = []
-                for s in obj.Serials:
-                    if s.Async is not None and s.Async.is_open:
-                        s.Async.close()
-                        msg.append(s.Async.port)
-                if msg:
-                    m = "{} closing port {}... done\n"
-                    FreeCAD.Console.PrintLog(m.format(obj.Name, " ".join(msg)))
-                for o in obj.Serials:
-                    o.Async = None
         if prop == "Open":
             if obj.Open:
-                s = obj.Serials[0]
-                if s.Async is None:
-                    try:
-                        s.Async = serial.serial_for_url(s.Port)
-                    except serial.SerialException as e:
-                        msg = "Error occurred opening port: {}\n"
-                        FreeCAD.Console.PrintError(msg.format(repr(e)))
-                        obj.Open = False
-                        return
-                    else:
-                        msg = "{} opening port {}... done\n"
-                        FreeCAD.Console.PrintLog(msg.format(obj.Label, s.Async.port))
-                elif not s.Async.is_open:
-                    s.Async.open()
-                obj.Thread = self.getClass(obj, obj.Plugin, "getUsbThread")
-                if obj.Thread is None:
-                    obj.Open = False
-                    return
-                obj.Thread.open()
-            elif obj.Thread is not None:
-                obj.Thread.close()
+                obj.Asyncs[0].Open = True
+                obj.Process = self.getClass(obj, obj.Plugin, "getUsbThread")
+            else:
+                obj.Process.close()
         if prop == "Start":
             if not obj.Open:
                 if obj.Start:
                     obj.Start = False
                 return
             if obj.Start:
-                obj.Thread.start()
+                obj.Process.start()
             else:
-                obj.Thread.stop()
+                obj.Process.stop()
         if prop == "Pause":
             if not obj.Open or not obj.Start:
                 if obj.Pause:
                     obj.Pause = False
                 return
             if obj.Pause:
-                obj.Thread.pause()
+                obj.Process.pause()
             else:
-                obj.Thread.resume()
+                obj.Process.resume()
 
 
 FreeCAD.Console.PrintLog("Loading UsbPool... done\n")

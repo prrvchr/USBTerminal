@@ -21,60 +21,29 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Minimal Pool default ViewProvider Plugin object """
+""" Document Observer Object """
 from __future__ import unicode_literals
 
-import FreeCADGui
+from PySide.QtCore import QObject, Signal
+from App import UsbCommand
 
 
-class _ViewProviderPool:
+class DocumentObserver(QObject):
 
-    def __init__(self, vobj): #mandatory
-        self.Type = "Gui::UsbPool"
-        for p in vobj.PropertiesList:
-            if vobj.getGroupOfProperty(p) != "Base":
-                if p not in ["DualView"]:
-                    vobj.removeProperty(p)
-        if "DualView" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyBool",
-                             "DualView",
-                             "Terminal",
-                             "Enable/disable terminal dualview")
-            vobj.DualView = False
-        self.Object = vobj.Object
-        vobj.Proxy = self
+    changedPort = Signal(object, unicode)
 
-    def __getstate__(self): #mandatory
-        return None
+    def __init__(self):
+        QObject.__init__(self)
 
-    def __setstate__(self, state): #mandatory
-        return None
-
-    def attach(self, vobj):
-        self.Type = "Gui::UsbPool"
-        self.Object = vobj.Object
-        return
-
-    def getIcon(self):
-        return "icons:Usb-Pool.xpm"
-
-    def onChanged(self, vobj, prop): #optional
+    def slotDeletedObject(self, obj):
         pass
 
-    def updateData(self, obj, prop): #optional
-        # this is executed when a property of the APP OBJECT changes
-        obj.Proxy.updateDataView(obj, prop)
+    def slotChangedObject(self, obj, prop):
+        if UsbCommand.getObjectType(obj) == "App::UsbPort":
+            self.changedPort.emit(obj, prop)
 
-    def setEdit(self, vobj, mode=0):
-        # this is executed when the object is double-clicked in the tree
+    def slotUndoDocument(self, doc):
         pass
 
-    def unsetEdit(self, vobj, mode=0):
-        # this is executed when the user cancels or terminates edit mode
+    def slotRedoDocument(self, doc):
         pass
-
-    def doubleClicked(self, vobj):
-        pass
-
-    def claimChildren(self):
-        return  self.Object.Serials

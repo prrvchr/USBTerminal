@@ -50,9 +50,11 @@ class _ViewProviderPort:
     def onChanged(self, vobj, prop): #optional
         pass
 
-    def updateData(self, vobj, prop): #optional
+    def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
-        pass
+        if prop == "Async":
+            if obj.Async is not None and FreeCADGui.Control.activeDialog():
+                obj.Label = obj.Label
 
     def setEdit(self, vobj, mode):
         # this is executed when the object is double-clicked in the tree
@@ -60,7 +62,7 @@ class _ViewProviderPort:
         if FreeCADGui.Control.activeDialog():
             FreeCADGui.Control.closeDialog()
         FreeCADGui.Control.showDialog(taskPanel)
-        return True
+        return False
 
     def unsetEdit(self, vobj, mode):
         # this is executed when the user cancels or terminates edit mode        

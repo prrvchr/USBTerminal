@@ -44,6 +44,12 @@ class Port:
                         "Update",
                         "Base",
                         "List of PySerial property to update", 2, True, True)
+        """ PySerial Base driving property """
+        obj.addProperty("App::PropertyBool",
+                        "Open",
+                        "Base",
+                        "Open/close PySerial port", 2)
+        obj.Open = False
         """ PySerial discovered port tools """
         obj.addProperty("App::PropertyEnumeration",
                         "Details",
@@ -89,6 +95,7 @@ class Port:
                         "Port",
                         "PySerial",
                         "Port, a number or a device name")
+        obj.Port = b"/dev/ttyACM0"
         obj.addProperty("App::PropertyBool",
                         "RtsCts",
                         "PySerial",
@@ -104,7 +111,7 @@ class Port:
                         "Timeout",
                         "PySerial",
                         "Set a read timeout (negative value wait forever)")
-        obj.Timeout = 0.01
+        obj.Timeout = 0.05
         obj.addProperty("App::PropertyFloat",
                         "WriteTimeout",
                         "PySerial",
@@ -115,6 +122,13 @@ class Port:
                         "enable software flow control")
         obj.XonXoff = False
         obj.Proxy = self
+
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self, state):
+        self.Type = "App::UsbPort"
+        return None
 
     def getDetails(self):
         return [b"Detail", b"Standart", b"VID:PID"]
@@ -149,19 +163,6 @@ class Port:
         obj.Baudrate = map(str, serial.Serial().BAUDRATES)
         obj.Baudrate = baudrate
 
-    def getSettingsDict(self, obj):
-        return {b"port" : b"{}".format(obj.Port),
-                b"baudrate" : int(obj.Baudrate),
-                b"bytesize" : int(obj.ByteSize),
-                b"parity" : b"{}".format(obj.Parity),
-                b"stopbits" : float(obj.StopBits),
-                b"xonxoff" : obj.XonXoff,
-                b"rtscts" : obj.RtsCts,
-                b"dsrdtr" : obj.DsrDtr,
-                b"timeout" : None if obj.Timeout < 0 else obj.Timeout,
-                b"write_timeout" : None if obj.WriteTimeout < 0 else obj.WriteTimeout,
-                b"inter_byte_timeout" : None if obj.InterByteTimeout < 0 else obj.InterByteTimeout}
-
     def execute(self, obj):
         if obj.Update:
             if "Port" in obj.Update:
@@ -171,9 +172,35 @@ class Port:
             obj.Update = []
 
     def onChanged(self, obj, prop):
-        if prop == "Async":
+        if prop == "Proxy":
+            if obj.Async is None:
+                obj.Async = serial.serial_for_url(self.getPort(obj), do_not_open=True)
+        if prop == "Label":
+            #Needed for reloading settings after creating/openning object
             if obj.Async is not None:
-                obj.Async.apply_settings(self.getSettingsDict(obj))
+                s = self.getSettings(obj)
+                s[b"port"] = self.getPort(obj)
+                obj.Async.apply_settings(s)
+        if prop == "Open":
+            if obj.Open:
+                #Need this patch!!!!
+                s = self.getSettings(obj)
+                obj.Async = serial.serial_for_url(self.getPort(obj), do_not_open=True, **s)                
+                if not obj.Async.is_open:
+                    try:
+                        obj.Async.open()
+                    except serial.SerialException as e:
+                        msg = "Error occurred opening port: {}\n"
+                        FreeCAD.Console.PrintError(msg.format(repr(e)))
+                        obj.Open = False
+                        return
+                    else:
+                        msg = "{} opening port {}... done\n"
+                        FreeCAD.Console.PrintLog(msg.format(obj.Label, obj.Async.port))
+            elif obj.Async.is_open:
+                obj.Async.close()
+                msg = "{} closing port {}... done\n"
+                FreeCAD.Console.PrintLog(msg.format(obj.Label, obj.Async.port))
         if prop == "Details":
             obj.Update = ["Port"]
             self.refreshPorts(obj)
@@ -185,41 +212,73 @@ class Port:
                 else:
                     obj.Port = "hwgrep://" + obj.Ports
         if prop == "Baudrate":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.baudrate = obj.Baudrate
+            if obj.Async is not None:
+                obj.Async.baudrate = self.getBaudrate(obj)
         if prop == "ByteSize":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.bytesize = obj.ByteSize
+            if obj.Async is not None:
+                obj.Async.bytesize = self.getByteSize(obj)
         if prop == "DsrDtr":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.dsrdtr = obj.DsrDtr
+            if obj.Async is not None:
+                obj.Async.dsrdtr = self.getDsrDtr(obj)
         if prop == "InterByteTimeout":
-            if obj.Async is not None and obj.Async.is_open:
-                timeout = None if obj.InterByteTimeout < 0 else obj.InterByteTimeout
-                obj.Async.inter_byte_timeout = timeout
+            if obj.Async is not None:
+                obj.Async.inter_byte_timeout = self.getInterByteTimeout(obj)
         if prop == "Parity":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.parity = obj.Parity
+            if obj.Async is not None:
+                obj.Async.parity = self.getParity(obj)
         if prop == "Port":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.port = obj.Port
+            if obj.Async is not None:
+                obj.Async.port = self.getPort(obj)
         if prop == "RtsCts":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.rtscts = obj.RtsCts
+            if obj.Async is not None:
+                obj.Async.rtscts = self.getRtsCts(obj)
         if prop == "StopBits":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.stopbits = float(obj.StopBits)
+            if obj.Async is not None:
+                obj.Async.stopbits = self.getStopBits(obj)
         if prop == "Timeout":
-            if obj.Async is not None and obj.Async.is_open:
-                timeout = None if obj.Timeout < 0 else obj.Timeout
-                obj.Async.timeout = timeout
+            if obj.Async is not None:
+                obj.Async.timeout = self.getTimeout(obj)
         if prop == "WriteTimeout":
-            if obj.Async is not None and obj.Async.is_open:
-                timeout = None if obj.WriteTimeout < 0 else obj.WriteTimeout
-                obj.Async.write_timeout = timeout
+            if obj.Async is not None:
+                obj.Async.write_timeout = self.getWriteTimeout(obj)
         if prop == "XonXoff":
-            if obj.Async is not None and obj.Async.is_open:
-                obj.Async.xonxoff = obj.XonXoff
+            if obj.Async is not None:
+                obj.Async.xonxoff = self.getXonXoff(obj)
+
+    def getSettings(self, obj):
+        return {b"baudrate" : self.getBaudrate(obj),
+                b"bytesize" : self.getByteSize(obj),
+                b"parity" : self.getParity(obj),
+                b"stopbits" : self.getStopBits(obj),
+                b"xonxoff" : self.getXonXoff(obj),
+                b"rtscts" : self.getRtsCts(obj),
+                b"dsrdtr" : self.getDsrDtr(obj),
+                b"timeout" : self.getTimeout(obj),
+                b"write_timeout" : self.getWriteTimeout(obj),
+                b"inter_byte_timeout" : self.getInterByteTimeout(obj)}
+
+    def getPort(self, obj):
+        return b"{}".format(obj.Port)
+    def getBaudrate(self, obj):
+        return int(obj.Baudrate)
+    def getByteSize(self, obj):
+        return int(obj.ByteSize)
+    def getParity(self, obj):
+        return b"{}".format(obj.Parity)
+    def getStopBits(self, obj):
+        return float(obj.StopBits)
+    def getXonXoff(self, obj):
+        return obj.XonXoff
+    def getRtsCts(self, obj):
+        return obj.RtsCts
+    def getDsrDtr(self, obj):
+        return obj.DsrDtr
+    def getTimeout(self, obj):
+        return None if obj.Timeout < 0 else obj.Timeout
+    def getWriteTimeout(self, obj):
+        return None if obj.WriteTimeout < 0 else obj.WriteTimeout
+    def getInterByteTimeout(self, obj):
+        return None if obj.InterByteTimeout < 0 else obj.InterByteTimeout    
 
 
 FreeCAD.Console.PrintLog("Loading UsbPort... done\n")

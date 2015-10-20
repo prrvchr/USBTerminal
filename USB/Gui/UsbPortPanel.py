@@ -25,14 +25,16 @@
 from __future__ import unicode_literals
 
 from PySide import QtCore, QtGui
-import FreeCADGui
+import FreeCAD, FreeCADGui
+from App import UsbCommand
+import serial
 
 
 class UsbPortPanel:
 
     def __init__(self, pool):
         form = []
-        for port in pool.Serials:
+        for port in pool.Asyncs:
             form.append(UsbPortTaskPanel(port))
         self.form = form
         
@@ -74,54 +76,74 @@ class UsbPortTaskPanel(QtGui.QGroupBox):
 
     def __init__(self, port):
         QtGui.QGroupBox.__init__(self)
-        self.setObjectName("{}-Monitor".format(port.Name))
-        self.setWindowTitle("{} Monitor".format(port.Label))
         self.setWindowIcon(QtGui.QIcon("icons:Usb-Port.xpm"))
+        self.setWindowTitle("PySerial {} monitor".format(port.Label))
         layout = QtGui.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        tableview = PySerialView(port)
+        model = PySerialModel()
+        tableview = PySerialView(model)
         layout.addWidget(tableview)
+        model.setModel(port)
 
 
 class PySerialView(QtGui.QTableView):
-    
-    def __init__(self, port):
+
+    def __init__(self, model):
         QtGui.QTableView.__init__(self)
-        model = PySerialModel(port)
         self.setModel(model)
-        self.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
         self.verticalHeader().setDefaultSectionSize(22)
         self.horizontalHeader().setStretchLastSection(True)
-        #self.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
-        #self.doubleClicked(QtCore.QModelIndex).connect(self.ItemDoubleClicked(QtCore.QModelIndex))
-
-    @QtCore.Slot(QtCore.QModelIndex)
-    def ItemDoubleClicked(self, index):
-        QMessageBox.information(None, "Hello!", "You Double Clicked: \n{}".format(index.data()))
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
 
 
 class PySerialModel(QtCore.QAbstractTableModel):
 
-    def __init__(self, port):
+    def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
-        self.port = port
+        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
+        obs.changedPort.connect(self.setModel)
+        self.pyserial = None
         self._column = 0
         self._header = ["Property", "Value"]
-        self._attributes = ["baudrate", "bytesize", "dsrdtr", "inter_byte_timeout", "parity",
-                            "port", "rtscts", "stopbits", "timeout", "write_timeout", "xonxoff",
-                            "in_waiting", "out_waiting", "rts", "dtr", "name", "cts", "dsr", "ri",
-                            "cd", "rs485_mode", "BAUDRATES", "BYTESIZES", "PARITIES", "STOPBITS"]
+        self.offline = ["baudrate", "break_condition", "bytesize", "closed",
+                        "dsrdtr", "dtr", "get_settings", "inter_byte_timeout",
+                        "is_open", "isatty", "parity", "port", "readable", "rts",
+                        "rtscts", "seekable", "stopbits", "timeout", "writable",
+                        "write_timeout", "xonxoff", "BAUDRATES", "BAUDRATE_CONSTANTS",
+                        "BYTESIZES", "PARITIES", "STOPBITS", "_SAVED_SETTINGS",]
+        self.online = ["cd", "cts", "dsr", "fileno", "in_waiting", "out_waiting",
+                       "ri", "rs485_mode"]
+        self.properties = []
 
-    def setColumn(self, column):
-        self._column = column
-        top = self.index(0, column, QtCore.QModelIndex())
-        bottom = self.index(self.rowCount() -1, column, QtCore.QModelIndex())
+    @QtCore.Slot(object, unicode)
+    def setModel(self, port, prop=None):
+        if port is None or port.Async is None:
+            self.pyserial = None
+            properties = []
+        else:
+            self.pyserial = port.Async
+            if self.pyserial.is_open:
+                properties = list(self.online + self.offline)
+            else:
+                properties = list(self.offline)
+        oldlen = self.rowCount()
+        newlen = len(properties)
+        if oldlen > newlen:
+            self.beginRemoveRows(QtCore.QModelIndex(), newlen - 1, oldlen - 1)
+            self.removeRows(newlen - 1, oldlen - newlen, QtCore.QModelIndex())
+            self.properties = properties
+            self.endRemoveRows()
+        elif oldlen < newlen:
+            self.beginInsertRows(QtCore.QModelIndex(), oldlen, oldlen + newlen - 1)
+            self.insertRows(oldlen, newlen - oldlen, QtCore.QModelIndex())
+            self.properties = properties
+            self.endInsertRows()
+        self.layoutAboutToBeChanged.emit()
+        top = self.index(0, 0, QtCore.QModelIndex())
+        bottom = self.index(self.rowCount() -1, 1, QtCore.QModelIndex())
+        self.changePersistentIndex(top, bottom)
         self.dataChanged.emit(top, bottom)
-
-    def setModel(self, port):
-        self.beginResetModel()
-        self.port = port
-        self.endResetModel()
+        self.layoutChanged.emit()
 
     def columnCount(self, parent=QtCore.QModelIndex()):
         return len(self._header)
@@ -130,17 +152,18 @@ class PySerialModel(QtCore.QAbstractTableModel):
         if not index.isValid():
             return None
         if role == QtCore.Qt.DisplayRole:
-            if self.port.Async is None or not self.port.Async.is_open:
-                if index.column():
-                    return "not connected!!!"
+            prop = self.properties[index.row()]
+            if index.column():
+                a = getattr(self.pyserial, prop)
+                if hasattr(a, "__self__"):
+                    return "{}".format(a())
                 else:
-                    return "{}".format(self.port.Label)
+                    return "{}".format(a)
             else:
-                if index.column():
-                    attr = getattr(self.port.Async, self._attributes[index.row()])
-                    return "{}".format(attr)
-                else:
-                    return self._attributes[index.row()]
+                return prop
+        if role == QtCore.Qt.BackgroundRole:
+            color = QtGui.QColor("#f0f0f0") if index.row() % 2 == 0 else QtCore.Qt.white
+            return QtGui.QBrush(color)
         return None
 
     def headerData(self, section, orientation=QtCore.Qt.Horizontal, role=QtCore.Qt.DisplayRole):
@@ -154,10 +177,22 @@ class PySerialModel(QtCore.QAbstractTableModel):
     def rowCount(self, parent=QtCore.QModelIndex()):
         if parent.isValid():
             return 0
-        if self.port.Async is None or not self.port.Async.is_open:
-            return 1
-        return len(self._attributes)
+        return len(self.properties)
 
-    @QtCore.Slot(int)
-    def onActivated(self, value):
-        self.setColumn(value)
+
+class PortWatcher:
+
+    def __init__(self):
+        self.model = PySerialModel()
+        view = PySerialView(self.model)
+        self.widgets = [view]
+
+    def shouldShow(self):
+        sel = FreeCADGui.Selection.getSelection()
+        if len(sel):
+            obj = sel[0]
+            if UsbCommand.getObjectType(obj) == "App::UsbPort":
+                self.model.setModel(obj)
+                return True
+        self.model.setModel(None)
+        return False

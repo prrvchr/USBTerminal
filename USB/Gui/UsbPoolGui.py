@@ -21,95 +21,63 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" TinyG2 ViewProvider Plugin object """
+""" Minimal Pool default ViewProvider Plugin object """
 from __future__ import unicode_literals
 
 import FreeCADGui
 from PySide.QtCore import Qt
 from PySide.QtGui import QDockWidget
-from Gui import UsbPoolGui
-from Gui import TerminalDock
-from pivy import coin
+from Gui import UsbPortGui, TerminalDock
 
 
-class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
+class _ViewProviderPool:
 
     def __init__(self, vobj): #mandatory
-        self.indexPosition = 0
         self.Type = "Gui::UsbPool"
         for p in vobj.PropertiesList:
-            if vobj.getGroupOfProperty(p) in ["Drawing", "Terminal"]:
-                if p not in ["Buffers", "Color", "Draw", "Positions", "DualView", "EchoFilter"]:
+            if vobj.getGroupOfProperty(p) != "Base":
+                if p not in ["DualView"]:
                     vobj.removeProperty(p)
-        if "Buffers" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyInteger",
-                             "Buffers",
-                             "Drawing",
-                             "Number of position queued before display")
-            vobj.Buffers = 5
-        if "Color" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyColor",
-                             "Color",
-                             "Drawing",
-                             "Drawing color")
-            vobj.Color = (1.0, 0.0, 0.0)
-        if "Draw" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyBool",
-                             "Draw",
-                             "Drawing",
-                             "Draw positions received during upload")
-            vobj.Draw = True
-        if "Positions" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyPythonObject",
-                             "Positions",
-                             "Drawing",
-                             "List of positions acquired during upload")
-            vobj.Positions = []
         if "DualView" not in vobj.PropertiesList:
             vobj.addProperty("App::PropertyBool",
                              "DualView",
                              "Terminal",
                              "Enable/disable terminal dualview")
             vobj.DualView = False
-        if "EchoFilter" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyBool",
-                             "EchoFilter",
-                             "Terminal",
-                             "Filter terminal echo during upload")
-            vobj.EchoFilter = True
         self.Object = vobj.Object
         vobj.Proxy = self
 
+    def __getstate__(self): #mandatory
+        return None
+
+    def __setstate__(self, state): #mandatory
+        return None
+
     def attach(self, vobj):
-        UsbPoolGui._ViewProviderPool.attach(self, vobj)
-        self.indexPosition = 0
+        self.Type = "Gui::UsbPool"
+        self.Object = vobj.Object
         return
 
+    def getIcon(self):
+        return "icons:Usb-Pool.xpm"
+
     def onChanged(self, vobj, prop): #optional
-        if prop == "Positions":
-            if not vobj.Draw:
-                return
-            if vobj.Proxy.indexPosition:
-                po = list(vobj.Positions[vobj.Proxy.indexPosition-1:])
-            else:
-                po = list(vobj.Positions[vobj.Proxy.indexPosition:])
-            vobj.Proxy.indexPosition = len(vobj.Positions)
-            co = coin.SoCoordinate3()
-            co.point.setValues(0, len(po), po)
-            ma = coin.SoBaseColor()
-            ma.rgb = vobj.Color[0:3]
-            li = coin.SoLineSet()
-            li.numVertices.setValue(len(po))
-            no = coin.SoSeparator()
-            no.addChild(co)
-            no.addChild(ma)
-            no.addChild(li)
-            vobj.RootNode.addChild(no)
+        pass
+
+    def getObjectViewType(self, vobj):
+        if not vobj or vobj.TypeId != "Gui::ViewProviderPythonFeature":
+            return None
+        if "Proxy" in vobj.PropertiesList:
+            if hasattr(vobj.Proxy, "Type"):
+                return vobj.Proxy.Type
+        return None
 
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
         if prop == "Asyncs":
-            UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
+            for o in obj.Asyncs:
+                if self.getObjectViewType(o.ViewObject) is None:
+                    UsbPortGui._ViewProviderPort(o.ViewObject)
         if prop == "Open":
             if obj.Open:
                 if obj.ViewObject.DualView:
@@ -121,10 +89,32 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 d.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
                 d.setWindowTitle("{} terminal".format(obj.Label))
                 FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
-                obj.Process.on_write("$${}".format(obj.Proxy.getCharEndOfLine(obj)))
+                eol = obj.Proxy.getCharEndOfLine(obj)
+                obj.Process.reader.read.emit("Now, you are connected{}".format(eol))
+                obj.Process.on_write("{}".format(eol))
             else:
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
                 for d in docks:
                     d.setParent(None)
                     d.close()
+
+    def setEdit(self, vobj, mode=0):
+        # this is executed when the object is double-clicked in the tree 
+        o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
+        if o is not None:
+            if FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
+            FreeCADGui.Control.showDialog(o)
+
+    def unsetEdit(self, vobj, mode=0):
+        # this is executed when the user cancels or terminates edit mode        
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+
+    def doubleClicked(self, vobj):
+        self.setEdit(vobj, 0)
+        return True
+
+    def claimChildren(self):
+        return  self.Object.Asyncs

@@ -21,7 +21,7 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" TinyG2 panel Plugin object """
+""" UsbPool panel Plugin object """
 from __future__ import unicode_literals
 
 import FreeCADGui
@@ -71,36 +71,12 @@ class UsbPoolTaskPanel(QtGui.QGroupBox):
 
     def __init__(self, pool):
         QtGui.QGroupBox.__init__(self)
-        self.setObjectName("TinyG2-Monitor")
-        self.setWindowTitle("TinyG2 Monitor")
+        self.setObjectName("Pool-Monitor")
+        self.setWindowTitle("Pool Monitor")
         self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
         layout = QtGui.QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        if not pool.Start:
-            txt = QtGui.QLabel("More information while upload!!!")
-            layout.addWidget(txt, 0, 0, 1, 1)
-            return
-        layout.addWidget(QtGui.QLabel("Line:"), 0, 0, 1, 1)
-        line = QtGui.QLabel()
-        layout.addWidget(line, 0, 1, 1, 3)
-        pool.Process.uploader.line.connect(line.setText)
-        layout.addWidget(QtGui.QLabel("GCode:"), 1, 0, 1, 1)
-        gcode = QtGui.QLabel()
-        layout.addWidget(gcode, 1, 1, 1, 3)
-        pool.Process.uploader.gcode.connect(gcode.setText)
-        layout.addWidget(QtGui.QLabel("Buffers:"), 2, 0, 1, 1)
-        buffers = QtGui.QLabel()
-        layout.addWidget(buffers, 2, 1, 1, 3)
-        pool.Process.reader.freebuffer.connect(buffers.setText)
-        layout.addWidget(QtGui.QLabel("PosX:"), 3, 0, 1, 1)
-        posx = QtGui.QLabel()
-        layout.addWidget(posx, 3, 1, 1, 3)        
-        pool.Process.pointx.connect(posx.setText)
-        layout.addWidget(QtGui.QLabel("PosY:"), 4, 0, 1, 1)        
-        posy = QtGui.QLabel()
-        layout.addWidget(posy, 4, 1, 1, 3)        
-        pool.Process.pointy.connect(posy.setText)
-        layout.addWidget(QtGui.QLabel("PosZ:"), 5, 0, 1, 1)  
-        posz = QtGui.QLabel()
-        layout.addWidget(posz, 5, 1, 1, 3)        
-        pool.Process.pointz.connect(posz.setText)
+        txt = QtGui.QLabel("Not implemented in this plugin!!!")
+        layout.addWidget(txt, 0, 0, 1, 1)
+        txt1 = QtGui.QLabel("Chose another plugin in Pool properties")
+        layout.addWidget(txt1, 1, 0, 1, 1)

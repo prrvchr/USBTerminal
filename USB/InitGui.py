@@ -55,21 +55,29 @@ class UsbWorkbench(Workbench):
     ToolTip = "Python USB workbench"
 
     def Initialize(self):
-        from Gui import initIcons
-        from App import UsbPool, UsbCommand
+        from Gui import initIcons, UsbPortPanel
+        from App import DocumentObserver, UsbPool, UsbCommand
         commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
         # Add commands to menu and toolbar
         self.appendToolbar("Commands for Usb", commands)
         self.appendMenu([b"USB"], commands)
+        self.observer = DocumentObserver.DocumentObserver()
+        App.addDocumentObserver(self.observer)
+        watcher = UsbPortPanel.PortWatcher()
+        Gui.Control.addTaskWatcher([watcher])
         Log('Loading USB workbench... done\n')
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
+        from Gui import UsbPortPanel        
+        watcher = UsbPortPanel.PortWatcher()
+        Gui.Control.addTaskWatcher([watcher])        
         Log("USB workbench activated\n")
 
     def Deactivated(self):
+        Gui.Control.clearTaskWatcher()
         Log("USB workbench deactivated\n")
 
 Gui.addWorkbench(UsbWorkbench())

@@ -57,7 +57,7 @@ class CommandPool:
         FreeCAD.ActiveDocument.openTransaction(b"New Pool")
         #FreeCADGui.addModule(b"App.UsbPool")
         code = '''from App import UsbPool
-from Gui import DefaultGui as UsbPoolGui
+from Gui import UsbPoolGui
 obj = FreeCAD.ActiveDocument.addObject("App::DocumentObjectGroupPython", "Pool")
 UsbPool.Pool(obj)
 UsbPoolGui._ViewProviderPool(obj.ViewObject)'''
