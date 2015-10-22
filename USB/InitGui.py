@@ -63,17 +63,15 @@ class UsbWorkbench(Workbench):
         self.appendMenu([b"USB"], commands)
         self.observer = DocumentObserver.DocumentObserver()
         App.addDocumentObserver(self.observer)
-        watcher = UsbPortPanel.PortWatcher()
-        Gui.Control.addTaskWatcher([watcher])
         Log('Loading USB workbench... done\n')
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        from Gui import UsbPortPanel        
+        from Gui import UsbPortPanel
         watcher = UsbPortPanel.PortWatcher()
-        Gui.Control.addTaskWatcher([watcher])        
+        Gui.Control.addTaskWatcher([watcher])
         Log("USB workbench activated\n")
 
     def Deactivated(self):

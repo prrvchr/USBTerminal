@@ -108,7 +108,7 @@ class _ViewProviderPool:
             FreeCADGui.Control.showDialog(o)
 
     def unsetEdit(self, vobj, mode=0):
-        # this is executed when the user cancels or terminates edit mode        
+        # this is executed when the user cancels or terminates edit mode
         if FreeCADGui.Control.activeDialog():
             FreeCADGui.Control.closeDialog()
 

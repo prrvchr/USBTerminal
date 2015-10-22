@@ -24,15 +24,20 @@
 """ TinyG2 panel Plugin object """
 from __future__ import unicode_literals
 
+from PySide import QtCore, QtGui
 import FreeCADGui
-from PySide import QtGui
 
 
 class UsbPoolPanel:
 
-    def __init__(self, pool):
-        self.form = UsbPoolTaskPanel(pool)
-
+    def __init__(self, obj):
+        model = SettingsModel()
+        model.setModel(obj)
+        taskpanel = UsbPoolTaskPanel(model)
+        taskpanel.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
+        taskpanel.setWindowTitle("TinyG2 {} monitor".format(obj.Label))
+        self.form = taskpanel
+    
     def accept(self):
         FreeCADGui.ActiveDocument.resetEdit()
         return True
@@ -48,7 +53,7 @@ class UsbPoolPanel:
         pass
 
     def needsFullSpace(self):
-        return False
+        return True
 
     def isAllowedAlterSelection(self):
         return True
@@ -67,40 +72,179 @@ class UsbPoolPanel:
         pass
 
 
-class UsbPoolTaskPanel(QtGui.QGroupBox):
+class UsbPoolTaskPanel(QtGui.QTabWidget):
 
-    def __init__(self, pool):
-        QtGui.QGroupBox.__init__(self)
-        self.setObjectName("TinyG2-Monitor")
-        self.setWindowTitle("TinyG2 Monitor")
-        self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
-        layout = QtGui.QGridLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        if not pool.Start:
-            txt = QtGui.QLabel("More information while upload!!!")
-            layout.addWidget(txt, 0, 0, 1, 1)
-            return
-        layout.addWidget(QtGui.QLabel("Line:"), 0, 0, 1, 1)
+    def __init__(self, model):
+        QtGui.QTabWidget.__init__(self)
+        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
+        tableview = UsbPoolView(model)
+        self.addTab(tableview, "Current settings")
+        monitor = QtGui.QWidget()
+        monitor.setLayout(QtGui.QGridLayout())
+        monitor.layout().addWidget(QtGui.QLabel("Line:"), 0, 0, 1, 1)
         line = QtGui.QLabel()
-        layout.addWidget(line, 0, 1, 1, 3)
-        pool.Process.uploader.line.connect(line.setText)
-        layout.addWidget(QtGui.QLabel("GCode:"), 1, 0, 1, 1)
+        monitor.layout().addWidget(line, 0, 1, 1, 3)
+        obs.line.connect(line.setText)
+        monitor.layout().addWidget(QtGui.QLabel("GCode:"), 1, 0, 1, 1)
         gcode = QtGui.QLabel()
-        layout.addWidget(gcode, 1, 1, 1, 3)
-        pool.Process.uploader.gcode.connect(gcode.setText)
-        layout.addWidget(QtGui.QLabel("Buffers:"), 2, 0, 1, 1)
+        monitor.layout().addWidget(gcode, 1, 1, 1, 3)
+        obs.gcode.connect(gcode.setText)
+        monitor.layout().addWidget(QtGui.QLabel("Buffers:"), 2, 0, 1, 1)
         buffers = QtGui.QLabel()
-        layout.addWidget(buffers, 2, 1, 1, 3)
-        pool.Process.reader.freebuffer.connect(buffers.setText)
-        layout.addWidget(QtGui.QLabel("PosX:"), 3, 0, 1, 1)
+        monitor.layout().addWidget(buffers, 2, 1, 1, 3)
+        obs.buffers.connect(buffers.setText)
+        monitor.layout().addWidget(QtGui.QLabel("PosX:"), 3, 0, 1, 1)
         posx = QtGui.QLabel()
-        layout.addWidget(posx, 3, 1, 1, 3)        
-        pool.Process.pointx.connect(posx.setText)
-        layout.addWidget(QtGui.QLabel("PosY:"), 4, 0, 1, 1)        
+        monitor.layout().addWidget(posx, 3, 1, 1, 3)
+        obs.pointx.connect(posx.setText)
+        monitor.layout().addWidget(QtGui.QLabel("PosY:"), 4, 0, 1, 1)
         posy = QtGui.QLabel()
-        layout.addWidget(posy, 4, 1, 1, 3)        
-        pool.Process.pointy.connect(posy.setText)
-        layout.addWidget(QtGui.QLabel("PosZ:"), 5, 0, 1, 1)  
+        monitor.layout().addWidget(posy, 4, 1, 1, 3)
+        obs.pointy.connect(posy.setText)
+        monitor.layout().addWidget(QtGui.QLabel("PosZ:"), 5, 0, 1, 1)
         posz = QtGui.QLabel()
-        layout.addWidget(posz, 5, 1, 1, 3)        
-        pool.Process.pointz.connect(posz.setText)
+        monitor.layout().addWidget(posz, 5, 1, 1, 3)
+        obs.pointz.connect(posz.setText)
+        monitor.layout().addWidget(QtGui.QLabel("Vel:"), 6, 0, 1, 1)
+        vel = QtGui.QLabel()
+        monitor.layout().addWidget(vel, 6, 1, 1, 3)
+        obs.vel.connect(vel.setText)
+        monitor.layout().addWidget(QtGui.QLabel("Feed:"), 7, 0, 1, 1)
+        feed = QtGui.QLabel()
+        monitor.layout().addWidget(feed, 7, 1, 1, 3)
+        obs.feed.connect(feed.setText)
+        self.addTab(monitor, "Upload monitor")
+
+
+class UsbPoolView(QtGui.QTableView):
+
+    def __init__(self, model):
+        QtGui.QTableView.__init__(self)
+        self.setModel(model)
+        self.verticalHeader().setDefaultSectionSize(22)
+        self.horizontalHeader().setStretchLastSection(True)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+
+
+class SettingsModel(QtCore.QAbstractTableModel):
+
+
+    def __init__(self):
+        QtCore.QAbstractTableModel.__init__(self)
+        self.obj = None
+        self._header = ["Cmd", "Property", "Value"]
+        self.settings = []
+        self.newsettings = []
+        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
+        obs.changedPool.connect(self.on_model)
+        obs.settings.connect(self.on_setting)
+
+    def setModel(self, obj):
+        self.obj = obj
+        self.on_model(obj, "Open")
+
+    @QtCore.Slot(object, unicode)
+    def on_model(self, obj, prop=None):
+        if obj is None or self.obj is None:
+            self.newsettings = []
+            self.updateModel()
+            return
+        elif obj != self.obj:
+            return
+        if prop not in ["Open", "Start", "Pause"]:
+            return
+        if (obj.Open and not obj.Start) or (obj.Open and obj.Pause):
+            self.newsettings = []
+            self.obj.Process.on_write("$$")
+        else:
+            self.newsettings = []
+            self.updateModel()
+
+    @QtCore.Slot(unicode)
+    def on_setting(self, setting):
+        if setting == "eol":
+            self.updateModel()
+            self.newsettings = []
+            return
+        row = []
+        cel = ""
+        for i, char in enumerate(setting):
+            if char == " " and cel.endswith("]"):
+                row.append(cel)
+                cel = ""
+                continue
+            if char in [" ", "0", "1"] and len(cel.strip()) and cel.endswith(" "):
+                row.append(cel.strip())
+                cel = char
+                continue
+            cel += char
+        row.append(cel.strip())
+        self.newsettings.append(row)
+
+    def updateModel(self):
+        old = self.rowCount()
+        new = len(self.newsettings)
+        if old > new:
+            self.beginRemoveRows(QtCore.QModelIndex(), new - 1, old - 1)
+            self.removeRows(new - 1, old - new, QtCore.QModelIndex())
+            self.settings = list(self.newsettings)
+            self.endRemoveRows()
+        elif old < new:
+            self.beginInsertRows(QtCore.QModelIndex(), old, old + new - 1)
+            self.insertRows(old, new - old, QtCore.QModelIndex())
+            self.settings = list(self.newsettings)
+            self.endInsertRows()
+        self.layoutAboutToBeChanged.emit()
+        top = self.index(0, 0, QtCore.QModelIndex())
+        bottom = self.index(self.rowCount() -1, 1, QtCore.QModelIndex())
+        self.changePersistentIndex(top, bottom)
+        self.dataChanged.emit(top, bottom)
+        self.layoutChanged.emit()
+
+    def columnCount(self, parent=QtCore.QModelIndex()):
+        return len(self._header)
+
+    def data(self, index=QtCore.QModelIndex(), role=QtCore.Qt.DisplayRole):
+        if not index.isValid() or self.obj is None:
+            return None
+        if role == QtCore.Qt.DisplayRole:
+            row = self.settings[index.row()]
+            return "{}".format(row[index.column()])
+        if role == QtCore.Qt.BackgroundRole:
+            color = QtGui.QColor("#f0f0f0") if index.row() % 2 == 0 else QtCore.Qt.white
+            return QtGui.QBrush(color)
+        return None
+
+    def headerData(self, section, orientation=QtCore.Qt.Horizontal, role=QtCore.Qt.DisplayRole):
+        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+            return self._header[section]
+        return None
+
+    def flags(self, index=QtCore.QModelIndex()):
+        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+
+    def rowCount(self, parent=QtCore.QModelIndex()):
+        if parent.isValid():
+            return 0
+        return len(self.settings)
+
+
+class PoolWatcher:
+
+    def __init__(self):
+        self.title = b"TinyG2 monitor"
+        self.icon = b"icons:Usb-Pool.xpm"
+        self.model = SettingsModel()
+        self.widgets = [UsbPoolTaskPanel(self.model)]
+
+    def shouldShow(self):
+        s = FreeCADGui.Selection.getSelection()
+        if len(s):
+            o = s[0]
+            if UsbCommand.getObjectType(o) == "App::UsbPool":
+                if o.Open:
+                    self.model.setModel(o)
+                    return True
+        self.model.on_model(None)
+        return False
+

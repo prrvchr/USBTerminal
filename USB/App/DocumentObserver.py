@@ -30,7 +30,17 @@ from App import UsbCommand
 
 class DocumentObserver(QObject):
 
-    changedPort = Signal(object, unicode)
+    changedPool = Signal(object, unicode)
+    changedPort = Signal(object)
+    line = Signal(unicode)
+    gcode = Signal(unicode)
+    pointx = Signal(unicode)
+    pointy = Signal(unicode)
+    pointz = Signal(unicode)
+    vel = Signal(unicode)
+    feed = Signal(unicode)
+    buffers = Signal(unicode)
+    settings = Signal(unicode)
 
     def __init__(self):
         QObject.__init__(self)
@@ -39,8 +49,11 @@ class DocumentObserver(QObject):
         pass
 
     def slotChangedObject(self, obj, prop):
-        if UsbCommand.getObjectType(obj) == "App::UsbPort":
-            self.changedPort.emit(obj, prop)
+        if UsbCommand.getObjectType(obj) == "App::UsbPool":
+            if prop in ["Open", "Start", "Pause"]:
+                self.changedPool.emit(obj, prop)
+        elif UsbCommand.getObjectType(obj) == "App::UsbPort":
+            self.changedPort.emit(obj)
 
     def slotUndoDocument(self, doc):
         pass

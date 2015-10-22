@@ -28,7 +28,7 @@ import FreeCADGui
 from PySide import QtGui
 from Gui import UsbPortPanel
 
-    
+
 class _ViewProviderPort:
 
     def __init__(self, vobj): #mandatory
@@ -40,10 +40,10 @@ class _ViewProviderPort:
 
     def __setstate__(self, state): #mandatory
         return None
-    
+
     def attach(self, vobj):
         pass
-    
+
     def getIcon(self):
         return "icons:Usb-Port.xpm"
 
@@ -65,7 +65,7 @@ class _ViewProviderPort:
         return False
 
     def unsetEdit(self, vobj, mode):
-        # this is executed when the user cancels or terminates edit mode        
+        # this is executed when the user cancels or terminates edit mode
         if FreeCADGui.Control.activeDialog():
             FreeCADGui.Control.closeDialog()
             return True

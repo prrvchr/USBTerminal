@@ -112,19 +112,32 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
             UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
         if prop == "Open":
             if obj.Open:
+                obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
                 if obj.ViewObject.DualView:
                     d = TerminalDock.DualTerminalDock()
                 else:
                     d = TerminalDock.TerminalDock()
                 obj.Process.reader.read.connect(d.on_write)
+                obj.Process.reader.settings.connect(obs.settings)
                 d.read.connect(obj.Process.on_write)
                 d.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
                 d.setWindowTitle("{} terminal".format(obj.Label))
                 FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
-                obj.Process.on_write("$${}".format(obj.Proxy.getCharEndOfLine(obj)))
+                #obj.Process.on_write("$${}".format(obj.Proxy.getCharEndOfLine(obj)))
             else:
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
                 for d in docks:
                     d.setParent(None)
                     d.close()
+        if prop == "Start":
+            if obj.Start:
+                obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
+                obj.Process.uploader.line.connect(obs.line)
+                obj.Process.uploader.gcode.connect(obs.gcode)
+                obj.Process.reader.buffers.connect(obs.buffers)
+                obj.Process.pointx.connect(obs.pointx)
+                obj.Process.pointy.connect(obs.pointy)
+                obj.Process.pointz.connect(obs.pointz)
+                obj.Process.vel.connect(obs.vel)
+                obj.Process.feed.connect(obs.feed)

@@ -28,8 +28,6 @@ import io
 import serial
 from PySide.QtCore import QThread, QObject, QMutex, Signal, Slot
 from FreeCAD import Console
-from PySide.QtGui import QDockWidget
-import FreeCADGui
 
 
 class Mutex(QMutex):
@@ -46,9 +44,8 @@ class UsbThread(QObject):
         self.pool = pool
         self.run = Mutex(True)
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
-        s = self.pool.Asyncs[0].Async
-        sio = io.BufferedRWPair(s, s)
-        self.sio = io.TextIOWrapper(sio, newline = self.eol)
+        s = io.BufferedWriter(self.pool.Asyncs[0].Async)
+        self.sio = io.TextIOWrapper(s, newline = self.eol)
         self.thread = QThread(self)
         self.reader = UsbReader(self.pool, self.run)
         self.reader.moveToThread(self.thread)
@@ -101,17 +98,16 @@ class UsbReader(QObject):
         self.pool = pool
         self.run = run
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
-        s = self.pool.Asyncs[0].Async
-        sio = io.BufferedRWPair(s, s)
-        self.sio = io.TextIOWrapper(sio, newline = self.eol)
+        s = io.BufferedReader(self.pool.Asyncs[0].Async)
+        self.sio = io.TextIOWrapper(s, newline = self.eol)
 
     @Slot()
     def process(self):
+        """ Loop and copy PySerial -> Terminal """
         try:
-            """ Loop and copy PySerial -> Terminal """
-            s = self.pool.Asyncs[0].Async.port
+            p = self.pool.Asyncs[0].Async.port
             msg = "{} UsbReader thread start on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, s))
+            Console.PrintLog(msg.format(self.pool.Name, p))
             self.run.lock()
             while self.run.value:
                 self.run.unlock()
@@ -122,7 +118,7 @@ class UsbReader(QObject):
                 self.run.lock()
             self.run.unlock()
             msg = "{} UsbReader thread stop on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, s))
+            Console.PrintLog(msg.format(self.pool.Name, p))
         except Exception as e:
             msg = "Error occurred in UsbReader thread process: {}\n"
             Console.PrintError(msg.format(e))

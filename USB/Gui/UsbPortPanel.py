@@ -32,12 +32,17 @@ import serial
 
 class UsbPortPanel:
 
-    def __init__(self, pool):
+    def __init__(self, obj):
         form = []
-        for port in pool.Asyncs:
-            form.append(UsbPortTaskPanel(port))
+        for o in obj.Asyncs:
+            model = PySerialModel()
+            model.setModel(o)
+            taskpanel = UsbPortTaskPanel(model)
+            taskpanel.setWindowIcon(QtGui.QIcon("icons:Usb-Port.xpm"))
+            taskpanel.setWindowTitle("PySerial {} monitor".format(o.Label))
+            form.append(taskpanel)
         self.form = form
-        
+
     def accept(self):
         FreeCADGui.ActiveDocument.resetEdit()
         return True
@@ -72,18 +77,14 @@ class UsbPortPanel:
         pass
 
 
-class UsbPortTaskPanel(QtGui.QGroupBox):
+class UsbPortTaskPanel(QtGui.QWidget):
 
-    def __init__(self, port):
-        QtGui.QGroupBox.__init__(self)
-        self.setWindowIcon(QtGui.QIcon("icons:Usb-Port.xpm"))
-        self.setWindowTitle("PySerial {} monitor".format(port.Label))
+    def __init__(self, model):
+        QtGui.QWidget.__init__(self)
         layout = QtGui.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        model = PySerialModel()
         tableview = PySerialView(model)
         layout.addWidget(tableview)
-        model.setModel(port)
 
 
 class PySerialView(QtGui.QTableView):
@@ -100,43 +101,56 @@ class PySerialModel(QtCore.QAbstractTableModel):
 
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
-        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-        obs.changedPort.connect(self.setModel)
-        self.pyserial = None
-        self._column = 0
+        self.obj = None
         self._header = ["Property", "Value"]
         self.offline = ["baudrate", "break_condition", "bytesize", "closed",
                         "dsrdtr", "dtr", "get_settings", "inter_byte_timeout",
-                        "is_open", "isatty", "parity", "port", "readable", "rts",
+                        "is_open", "parity", "port", "readable", "rts",
                         "rtscts", "seekable", "stopbits", "timeout", "writable",
-                        "write_timeout", "xonxoff", "BAUDRATES", "BAUDRATE_CONSTANTS",
-                        "BYTESIZES", "PARITIES", "STOPBITS", "_SAVED_SETTINGS",]
-        self.online = ["cd", "cts", "dsr", "fileno", "in_waiting", "out_waiting",
-                       "ri", "rs485_mode"]
+                        "write_timeout", "xonxoff"]
+        # "fileno" raise error on loop:// port!!!
+        self.online = ["baudrate", "break_condition", "bytesize", "cd", "closed",
+                       "cts", "dsr", "dsrdtr", "dtr", "get_settings",
+                       "inter_byte_timeout", "in_waiting", "is_open", "isatty",
+                       "out_waiting", "parity", "port", "readable", "ri",
+                       "rs485_mode" "rts", "rtscts", "seekable", "stopbits",
+                       "timeout", "writable", "write_timeout", "xonxoff"]
         self.properties = []
+        self.newproperties = []
+        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
+        obs.changedPort.connect(self.on_model)
 
-    @QtCore.Slot(object, unicode)
-    def setModel(self, port, prop=None):
-        if port is None or port.Async is None:
-            self.pyserial = None
-            properties = []
+    def setModel(self, obj):
+        self.obj = obj
+        self.on_model(obj)
+
+    @QtCore.Slot(object)
+    def on_model(self, obj):
+        if obj is None or self.obj is None or self.obj.Async is None:
+            self.newproperties = []
+            self.updateModel()
+            return
+        elif obj != self.obj:
+            return
+        elif self.obj.Async.is_open:
+            #Test needed no "out_waiting" on loop:// port!!!
+            self.newproperties = [o for o in self.online if hasattr(self.obj.Async, o)]
         else:
-            self.pyserial = port.Async
-            if self.pyserial.is_open:
-                properties = list(self.online + self.offline)
-            else:
-                properties = list(self.offline)
-        oldlen = self.rowCount()
-        newlen = len(properties)
-        if oldlen > newlen:
-            self.beginRemoveRows(QtCore.QModelIndex(), newlen - 1, oldlen - 1)
-            self.removeRows(newlen - 1, oldlen - newlen, QtCore.QModelIndex())
-            self.properties = properties
+            self.newproperties = list(self.offline)
+        self.updateModel()
+
+    def updateModel(self):
+        old = self.rowCount()
+        new = len(self.newproperties)
+        if old > new:
+            self.beginRemoveRows(QtCore.QModelIndex(), new - 1, old - 1)
+            self.removeRows(new - 1, old - new, QtCore.QModelIndex())
+            self.properties = self.newproperties
             self.endRemoveRows()
-        elif oldlen < newlen:
-            self.beginInsertRows(QtCore.QModelIndex(), oldlen, oldlen + newlen - 1)
-            self.insertRows(oldlen, newlen - oldlen, QtCore.QModelIndex())
-            self.properties = properties
+        elif old < new:
+            self.beginInsertRows(QtCore.QModelIndex(), old, old + new - 1)
+            self.insertRows(old, new - old, QtCore.QModelIndex())
+            self.properties = self.newproperties
             self.endInsertRows()
         self.layoutAboutToBeChanged.emit()
         top = self.index(0, 0, QtCore.QModelIndex())
@@ -149,12 +163,12 @@ class PySerialModel(QtCore.QAbstractTableModel):
         return len(self._header)
 
     def data(self, index=QtCore.QModelIndex(), role=QtCore.Qt.DisplayRole):
-        if not index.isValid():
+        if not index.isValid() or self.obj.Async is None:
             return None
         if role == QtCore.Qt.DisplayRole:
             prop = self.properties[index.row()]
             if index.column():
-                a = getattr(self.pyserial, prop)
+                a = getattr(self.obj.Async, prop)
                 if hasattr(a, "__self__"):
                     return "{}".format(a())
                 else:
@@ -183,16 +197,17 @@ class PySerialModel(QtCore.QAbstractTableModel):
 class PortWatcher:
 
     def __init__(self):
+        self.title = b"PySerial monitor"
+        self.icon = b"icons:Usb-Port.xpm"
         self.model = PySerialModel()
-        view = PySerialView(self.model)
-        self.widgets = [view]
+        self.widgets = [UsbPortTaskPanel(self.model)]
 
     def shouldShow(self):
-        sel = FreeCADGui.Selection.getSelection()
-        if len(sel):
-            obj = sel[0]
-            if UsbCommand.getObjectType(obj) == "App::UsbPort":
-                self.model.setModel(obj)
+        s = FreeCADGui.Selection.getSelection()
+        if len(s):
+            o = s[0]
+            if UsbCommand.getObjectType(o) == "App::UsbPort":
+                self.model.setModel(o)
                 return True
         self.model.setModel(None)
         return False

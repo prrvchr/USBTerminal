@@ -95,7 +95,7 @@ class Port:
                         "Port",
                         "PySerial",
                         "Port, a number or a device name")
-        obj.Port = b"/dev/ttyACM0"
+        obj.Port = b"loop://"
         obj.addProperty("App::PropertyBool",
                         "RtsCts",
                         "PySerial",

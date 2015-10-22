@@ -87,7 +87,7 @@ class Pool:
                         "QThread process driver pointer", 2)
         obj.Process = None
         obj.Proxy = self
-        
+
     def __getstate__(self):
         return None
 
@@ -108,9 +108,9 @@ class Pool:
     def getClass(self, obj, source, attr):
         classInstance = None
         moduleName, fileExt = path.splitext(path.split(source)[-1])
-        if fileExt.lower() == '.py':
+        if fileExt.lower() == ".py":
             module = imp.load_source(moduleName, source)
-        elif fileExt.lower() == '.pyc':
+        elif fileExt.lower() == ".pyc":
             module = imp.load_compiled(moduleName, source)
         if hasattr(module, attr):
             classInstance = getattr(module, attr)(obj)

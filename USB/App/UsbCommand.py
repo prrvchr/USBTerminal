@@ -85,7 +85,7 @@ class CommandRefresh:
         obj = s[0]
         if getObjectType(obj) == "App::UsbPool":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-for o in obj.Serials:
+for o in obj.Asyncs:
     o.Update = ["Port", "Baudrate"]'''
         elif getObjectType(obj) == "App::UsbPort":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]

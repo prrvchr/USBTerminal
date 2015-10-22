@@ -27,6 +27,7 @@ from __future__ import unicode_literals
 import FreeCAD
 from App import DefaultDriver as UsbPoolDriver
 if FreeCAD.GuiUp:
+    import FreeCADGui
     from Gui import UsbPoolGui, UsbPoolPanel
 
 
@@ -37,12 +38,11 @@ def InitializePlugin(obj):
             if p not in ["Plugin", "DualPort", "EndOfLine"]:
                 obj.removeProperty(p)
     if "ReadOnly" not in obj.getEditorMode("DualPort"):
-        obj.setEditorMode("DualPort", 1)    
+        obj.setEditorMode("DualPort", 1)
     if obj.DualPort:
         obj.DualPort = False
     if FreeCAD.GuiUp:
         UsbPoolGui._ViewProviderPool(obj.ViewObject)
-
 
 def getUsbThread(obj):
     return UsbPoolDriver.UsbThread(obj)
