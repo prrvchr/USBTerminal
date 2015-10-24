@@ -70,7 +70,7 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 d.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
                 d.setWindowTitle("{} terminal".format(obj.Label))
                 FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
-                obj.Process.on_write("$?{}".format(obj.Proxy.getCharEndOfLine(obj)))
+                obj.Process.on_write("$$")
             else:
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)

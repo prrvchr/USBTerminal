@@ -91,7 +91,7 @@ class _ViewProviderPool:
                 FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
                 eol = obj.Proxy.getCharEndOfLine(obj)
                 obj.Process.reader.read.emit("Now, you are connected{}".format(eol))
-                obj.Process.on_write("{}".format(eol))
+                obj.Process.on_write("")
             else:
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
