@@ -58,7 +58,7 @@ class _ViewProviderPort:
 
     def setEdit(self, vobj, mode):
         # this is executed when the object is double-clicked in the tree
-        taskPanel = UsbPortPanel.UsbPortPanel(vobj.Object.InList[0])
+        taskPanel = UsbPortPanel.UsbPortTaskPanel(vobj.Object.InList[0])
         if FreeCADGui.Control.activeDialog():
             FreeCADGui.Control.closeDialog()
         FreeCADGui.Control.showDialog(taskPanel)

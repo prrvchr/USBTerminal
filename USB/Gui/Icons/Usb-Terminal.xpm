@@ -1,5 +1,5 @@
 /* XPM */
-static const char * const hyperterminal_xpm[]={
+static const char * const usbterminal_xpm[]={
 "32 32 3 1",
 ". c None",
 "# c #FFFFFF",

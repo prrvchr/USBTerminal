@@ -29,7 +29,7 @@ class UsbWorkbench(Workbench):
     "USB workbench object"
     Icon = b"""
         /* XPM */
-        static const char * const start_xpm[]={
+        static const char * const usbwb_xpm[]={
         "16 16 3 1",
         ".      c None",
         "#      c #FFFFFF",
@@ -55,8 +55,9 @@ class UsbWorkbench(Workbench):
     ToolTip = "Python USB workbench"
 
     def Initialize(self):
-        from Gui import initIcons, UsbPortPanel
+        from Gui import initResources, UsbPortPanel, UsbPoolPanel
         from App import DocumentObserver, UsbPool, UsbCommand
+        initResources.initIcons()
         commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
         # Add commands to menu and toolbar
         self.appendToolbar("Commands for Usb", commands)
@@ -69,9 +70,8 @@ class UsbWorkbench(Workbench):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        from Gui import UsbPortPanel
-        watcher = UsbPortPanel.PortWatcher()
-        Gui.Control.addTaskWatcher([watcher])
+        from Gui import initResources
+        initResources.initTaskWatcher()
         Log("USB workbench activated\n")
 
     def Deactivated(self):

@@ -25,13 +25,17 @@
 from __future__ import unicode_literals
 
 import FreeCADGui
-from PySide import QtGui
+from PySide import QtCore, QtGui
+from App import UsbCommand
 
 
-class UsbPoolPanel:
+class UsbPoolTaskPanel:
 
-    def __init__(self, pool):
-        self.form = UsbPoolTaskPanel(pool)
+    def __init__(self, obj):
+        model = PoolModel()
+        panel = UsbPoolPanel(model)
+        model.setModel(obj)
+        self.form = panel
 
     def accept(self):
         FreeCADGui.ActiveDocument.resetEdit()
@@ -67,12 +71,10 @@ class UsbPoolPanel:
         pass
 
 
-class UsbPoolTaskPanel(QtGui.QGroupBox):
+class UsbPoolPanel(QtGui.QGroupBox):
 
-    def __init__(self, pool):
+    def __init__(self, model):
         QtGui.QGroupBox.__init__(self)
-        self.setObjectName("Pool-Monitor")
-        self.setWindowTitle("Pool Monitor")
         self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
         layout = QtGui.QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -80,3 +82,33 @@ class UsbPoolTaskPanel(QtGui.QGroupBox):
         layout.addWidget(txt, 0, 0, 1, 1)
         txt1 = QtGui.QLabel("Chose another plugin in Pool properties")
         layout.addWidget(txt1, 1, 0, 1, 1)
+        model.title.connect(self.on_title)
+
+    @QtCore.Slot(unicode)
+    def on_title(self, title):
+        self.setWindowTitle("Usb {} monitor".format(title))
+
+
+class PoolModel(QtCore.QAbstractTableModel):
+
+    title = QtCore.Signal(unicode)
+
+    def __init__(self):
+        QtCore.QAbstractTableModel.__init__(self)
+        self.obj = None
+        self.modelReset.connect(self.on_modelReset)
+
+    @QtCore.Slot()
+    def on_modelReset(self):
+        if self.obj is not None:
+            self.title.emit(self.obj.Label)
+
+    def setModel(self, obj):
+        if self.obj != obj:
+            self.beginResetModel()
+            self.obj = obj
+            self.endResetModel()
+
+    @QtCore.Slot(object, unicode)
+    def on_change(self, obj, prop=None):
+        pass

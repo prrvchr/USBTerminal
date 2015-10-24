@@ -26,18 +26,18 @@ from __future__ import unicode_literals
 
 from PySide import QtCore, QtGui
 import FreeCADGui
+from App import UsbCommand
+from Gui import UsbPoolPanel
 
 
-class UsbPoolPanel:
+class UsbPoolTaskPanel:
 
     def __init__(self, obj):
-        model = SettingsModel()
+        model = PoolModel()
+        panel = UsbPoolPanel(model)
         model.setModel(obj)
-        taskpanel = UsbPoolTaskPanel(model)
-        taskpanel.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
-        taskpanel.setWindowTitle("TinyG2 {} monitor".format(obj.Label))
-        self.form = taskpanel
-    
+        self.form = panel
+
     def accept(self):
         FreeCADGui.ActiveDocument.resetEdit()
         return True
@@ -72,13 +72,50 @@ class UsbPoolPanel:
         pass
 
 
-class UsbPoolTaskPanel(QtGui.QTabWidget):
+class SettingTabBar(QtGui.QTabBar):
+
+    command = QtCore.Signal(unicode)
+
+    def __init__(self):
+        QtGui.QTabBar.__init__(self)
+        self.setShape(QtGui.QTabBar.RoundedWest)
+        self.setDocumentMode(True)
+        self.setTabData(self.addTab("All"), "$$")
+        self.setTabData(self.addTab("Axis"), "$q")
+        self.setTabData(self.addTab("x"), "$x")
+        self.setTabData(self.addTab("y"), "$y")
+        self.setTabData(self.addTab("z"), "$z")
+        self.setTabData(self.addTab("a"), "$a")
+        self.setTabData(self.addTab("b"), "$b")
+        self.setTabData(self.addTab("c"), "$c")
+        self.setTabData(self.addTab("Motors"), "$m")
+        self.setTabData(self.addTab("1"), "$1")
+        self.setTabData(self.addTab("2"), "$2")
+        self.setTabData(self.addTab("3"), "$3")
+        self.setTabData(self.addTab("4"), "$4")
+        self.setTabData(self.addTab("OffSet"), "$o")
+        self.setTabData(self.addTab("System"), "$sys")
+        self.currentChanged.connect(self.on_command)
+
+    @QtCore.Slot(int)
+    def on_command(self, index):
+        self.command.emit(self.tabData(index))
+
+
+class UsbPoolPanel(QtGui.QTabWidget):
 
     def __init__(self, model):
         QtGui.QTabWidget.__init__(self)
+        self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
         obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
+        setting = QtGui.QWidget()
+        setting.setLayout(QtGui.QHBoxLayout())
+        tabbar = SettingTabBar()
+        tabbar.command.connect(model.on_command)
+        setting.layout().addWidget(tabbar)
         tableview = UsbPoolView(model)
-        self.addTab(tableview, "Current settings")
+        setting.layout().addWidget(tableview)
+        self.addTab(setting, "Current settings")
         monitor = QtGui.QWidget()
         monitor.setLayout(QtGui.QGridLayout())
         monitor.layout().addWidget(QtGui.QLabel("Line:"), 0, 0, 1, 1)
@@ -114,37 +151,56 @@ class UsbPoolTaskPanel(QtGui.QTabWidget):
         monitor.layout().addWidget(feed, 7, 1, 1, 3)
         obs.feed.connect(feed.setText)
         self.addTab(monitor, "Upload monitor")
+        model.title.connect(self.on_title)
+
+    @QtCore.Slot(unicode)
+    def on_title(self, title):
+        self.setWindowTitle("TinyG2 {} monitor".format(title))
 
 
 class UsbPoolView(QtGui.QTableView):
 
     def __init__(self, model):
         QtGui.QTableView.__init__(self)
+        i = model._header.index("Value")
+        self.setItemDelegateForColumn(i, PoolDelegate(self))
         self.setModel(model)
         self.verticalHeader().setDefaultSectionSize(22)
         self.horizontalHeader().setStretchLastSection(True)
+        self.horizontalHeader().setMovable(True)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
 
 
-class SettingsModel(QtCore.QAbstractTableModel):
+class PoolModel(QtCore.QAbstractTableModel):
 
+    title = QtCore.Signal(unicode)
 
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self.obj = None
-        self._header = ["Cmd", "Property", "Value"]
+        self.cmd = "$$"
+        self._header = ["Cmd", "Property", "Value", "Unit"]
         self.settings = []
         self.newsettings = []
+        self.changedindex = QtCore.QModelIndex()
+        self.modelReset.connect(self.on_modelReset)
         obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-        obs.changedPool.connect(self.on_model)
-        obs.settings.connect(self.on_setting)
+        obs.changedPool.connect(self.on_change)
+        obs.settings.connect(self.on_settings)
+
+    @QtCore.Slot()
+    def on_modelReset(self):
+        if self.obj is not None:
+            self.title.emit(self.obj.Label)
 
     def setModel(self, obj):
+        self.beginResetModel()
         self.obj = obj
-        self.on_model(obj, "Open")
+        self.on_change(obj, "Open")
+        self.endResetModel()
 
     @QtCore.Slot(object, unicode)
-    def on_model(self, obj, prop=None):
+    def on_change(self, obj, prop=None):
         if obj is None or self.obj is None:
             self.newsettings = []
             self.updateModel()
@@ -154,32 +210,55 @@ class SettingsModel(QtCore.QAbstractTableModel):
         if prop not in ["Open", "Start", "Pause"]:
             return
         if (obj.Open and not obj.Start) or (obj.Open and obj.Pause):
-            self.newsettings = []
-            self.obj.Process.on_write("$$")
+            self.obj.Process.on_write(self.cmd)
         else:
             self.newsettings = []
             self.updateModel()
 
     @QtCore.Slot(unicode)
-    def on_setting(self, setting):
-        if setting == "eol":
-            self.updateModel()
+    def on_command(self, cmd):
+        self.cmd = cmd
+        self.obj.Process.on_write(cmd)
+
+    @QtCore.Slot(unicode)
+    def on_settings(self, setting):
+        if setting == "endofsettings":
+            if self.changedindex.isValid():
+                self.updateIndex()
+            else:
+                self.updateModel()
             self.newsettings = []
             return
-        row = []
-        cel = ""
-        for i, char in enumerate(setting):
-            if char == " " and cel.endswith("]"):
-                row.append(cel)
-                cel = ""
-                continue
-            if char in [" ", "0", "1"] and len(cel.strip()) and cel.endswith(" "):
-                row.append(cel.strip())
-                cel = char
-                continue
-            cel += char
-        row.append(cel.strip())
-        self.newsettings.append(row)
+        r = []
+        c = ""
+        for i, s in enumerate(setting):
+            if s == " " and c.endswith("]"):
+                r.append(c)
+                c = ""
+                break
+            c += s
+        for j, s in enumerate(setting[i+1:]):
+            if s in ["-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]\
+               and c.endswith(" "):
+                r.append(c.strip())
+                c = s
+                break
+            c += s
+        for k, s in enumerate(setting[i+j+2:]):
+            if (s == " " and len(c.strip())) or i+j+k+3 == len(setting):
+                r.append(c.strip())
+                break
+            c += s
+        r.append(setting[i+j+k+3:])
+        self.newsettings.append(r)
+
+    def updateIndex(self):
+        self.layoutAboutToBeChanged.emit()
+        self.changePersistentIndex(self.changedindex, self.changedindex)
+        self.settings[self.changedindex.row()] = self.newsettings[0]
+        self.dataChanged.emit(self.changedindex, self.changedindex)
+        self.changedindex = QtCore.QModelIndex()
+        self.layoutChanged.emit()
 
     def updateModel(self):
         old = self.rowCount()
@@ -198,6 +277,7 @@ class SettingsModel(QtCore.QAbstractTableModel):
         top = self.index(0, 0, QtCore.QModelIndex())
         bottom = self.index(self.rowCount() -1, 1, QtCore.QModelIndex())
         self.changePersistentIndex(top, bottom)
+        if old == new: self.settings = list(self.newsettings)
         self.dataChanged.emit(top, bottom)
         self.layoutChanged.emit()
 
@@ -208,12 +288,18 @@ class SettingsModel(QtCore.QAbstractTableModel):
         if not index.isValid() or self.obj is None:
             return None
         if role == QtCore.Qt.DisplayRole:
-            row = self.settings[index.row()]
-            return "{}".format(row[index.column()])
+            return "{}".format(self.settings[index.row()][index.column()])
         if role == QtCore.Qt.BackgroundRole:
             color = QtGui.QColor("#f0f0f0") if index.row() % 2 == 0 else QtCore.Qt.white
             return QtGui.QBrush(color)
         return None
+
+    def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+        self.changedindex = index
+        i = self._header.index("Cmd")
+        cmd = self.data(self.index(index.row(), i)).strip("[]")
+        self.obj.Process.on_write("${}={}".format(cmd, value))
+        return True
 
     def headerData(self, section, orientation=QtCore.Qt.Horizontal, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
@@ -221,7 +307,11 @@ class SettingsModel(QtCore.QAbstractTableModel):
         return None
 
     def flags(self, index=QtCore.QModelIndex()):
-        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+        if index.column() == self._header.index("Value"):
+            return QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsEnabled
+        else:
+            return QtCore.Qt.ItemIsEnabled  
+        #return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
     def rowCount(self, parent=QtCore.QModelIndex()):
         if parent.isValid():
@@ -229,22 +319,65 @@ class SettingsModel(QtCore.QAbstractTableModel):
         return len(self.settings)
 
 
-class PoolWatcher:
+class PoolDelegate(QtGui.QStyledItemDelegate):
 
-    def __init__(self):
-        self.title = b"TinyG2 monitor"
-        self.icon = b"icons:Usb-Pool.xpm"
-        self.model = SettingsModel()
-        self.widgets = [UsbPoolTaskPanel(self.model)]
+    def __init__(self, parent):
+        QtGui.QStyledItemDelegate.__init__(self, parent)
+        
+    def createEditor(self, parent, option, index):
+        model = index.model()
+        i = model._header.index("Unit")
+        editor = model.data(model.index(index.row(), i))
+        if not editor:
+            return QtGui.QStyledItemDelegate.createEditor(self, parent, option, index)
+        if editor.startswith("["):
+            if "," and "=" in editor:
+                paires = editor.strip("[]").split(",")
+                combo = QtGui.QComboBox(parent)
+                for p in paires:
+                    values = p.split("=")
+                    combo.addItem(values[1], values[0])
+                return combo
+            elif "," in editor:
+                combo = QtGui.QComboBox(parent)
+                for p in editor.strip("[]").split(","):
+                    combo.addItem(p, p)
+                return combo
+        elif editor == "RPM" or editor == "Hz" or editor == "ms":
+            spin = QtGui.QSpinBox(parent)
+            spin.setMaximum(50000)
+            return spin            
+        elif editor == "deg" or editor == "in" or editor == "mm":
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setDecimals(4)
+            spin.setMaximum(50000)
+            spin.setMinimum(-50000)
+            return spin
+        elif editor.startswith("deg/min") or editor.startswith("in/min") or editor.startswith("mm/min"):
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setDecimals(4)
+            spin.setMaximum(50000)
+            return spin
+        elif editor.startswith("seconds"):
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setDecimals(2)
+            spin.setMaximum(1000)
+            return spin
+        return QtGui.QStyledItemDelegate.createEditor(self, parent, option, index)
 
-    def shouldShow(self):
-        s = FreeCADGui.Selection.getSelection()
-        if len(s):
-            o = s[0]
-            if UsbCommand.getObjectType(o) == "App::UsbPool":
-                if o.Open:
-                    self.model.setModel(o)
-                    return True
-        self.model.on_model(None)
-        return False
-
+        
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QtGui.QComboBox):
+            editor.setCurrentIndex(editor.findData(index.model().data(index)))
+        elif isinstance(editor, QtGui.QSpinBox):
+            editor.setValue(int(index.model().data(index)))
+        elif isinstance(editor, QtGui.QDoubleSpinBox):
+            editor.setValue(float(index.model().data(index)))
+        
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QtGui.QComboBox):
+            model.setData(index, editor.itemData(editor.currentIndex()))
+        elif isinstance(editor, QtGui.QSpinBox):
+            model.setData(index, editor.value())
+        elif isinstance(editor, QtGui.QDoubleSpinBox):
+            model.setData(index, editor.value())

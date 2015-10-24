@@ -27,7 +27,7 @@ from __future__ import unicode_literals
 import FreeCADGui
 from PySide.QtCore import Qt
 from PySide.QtGui import QDockWidget
-from Gui import UsbPortGui, TerminalDock
+from Gui import UsbPortGui, TerminalDock, UsbPoolPanel
 
 
 class _ViewProviderPool:
@@ -101,11 +101,11 @@ class _ViewProviderPool:
 
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree 
-        o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
-        if o is not None:
-            if FreeCADGui.Control.activeDialog():
-                FreeCADGui.Control.closeDialog()
-            FreeCADGui.Control.showDialog(o)
+        #o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
+        taskPanel = UsbPoolPanel.UsbPoolTaskPanel(vobj.Object)
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        FreeCADGui.Control.showDialog(taskPanel)
 
     def unsetEdit(self, vobj, mode=0):
         # this is executed when the user cancels or terminates edit mode

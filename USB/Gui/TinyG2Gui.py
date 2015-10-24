@@ -27,7 +27,7 @@ from __future__ import unicode_literals
 import FreeCADGui
 from PySide.QtCore import Qt
 from PySide.QtGui import QDockWidget
-from Gui import UsbPoolGui
+from Gui import UsbPoolGui, TinyG2Panel
 from Gui import TerminalDock
 from pivy import coin
 
@@ -35,8 +35,8 @@ from pivy import coin
 class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def __init__(self, vobj): #mandatory
+        self.Type = "Gui::UsbTinyG2"
         self.indexPosition = 0
-        self.Type = "Gui::UsbPool"
         for p in vobj.PropertiesList:
             if vobj.getGroupOfProperty(p) in ["Drawing", "Terminal"]:
                 if p not in ["Buffers", "Color", "Draw", "Positions", "DualView", "EchoFilter"]:
@@ -82,6 +82,7 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def attach(self, vobj):
         UsbPoolGui._ViewProviderPool.attach(self, vobj)
+        self.Type = "Gui::UsbTinyG2"
         self.indexPosition = 0
         return
 
@@ -141,3 +142,11 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 obj.Process.pointz.connect(obs.pointz)
                 obj.Process.vel.connect(obs.vel)
                 obj.Process.feed.connect(obs.feed)
+
+    def setEdit(self, vobj, mode=0):
+        # this is executed when the object is double-clicked in the tree 
+        #o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
+        taskPanel = TinyG2Panel.UsbPoolTaskPanel(vobj.Object)
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        FreeCADGui.Control.showDialog(taskPanel)

@@ -144,7 +144,7 @@ class DualTerminalDock(QDockWidget):
         self.output = QPlainTextEdit()
         terminal.addWidget(self.output)
         textedit = TextEditWidget()
-        terminal.addWidget(textedit)        
+        terminal.addWidget(textedit)
         self.setWidget(terminal)
 
     @Slot(unicode)

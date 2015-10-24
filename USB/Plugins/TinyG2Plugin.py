@@ -26,10 +26,10 @@ from __future__ import unicode_literals
 
 import FreeCAD
 from os import path
-from App import TinyG2Driver as UsbPoolDriver
+from App import UsbCommand, TinyG2Driver
 if FreeCAD.GuiUp:
-    from Gui import TinyG2Gui as UsbPoolGui
-    from Gui import TinyG2Panel as UsbPoolPanel
+    import FreeCADGui
+    from Gui import TinyG2Gui, TinyG2Panel, UsbPortPanel
 
 
 ''' Add/Delete App Object Plugin custom property '''
@@ -54,14 +54,27 @@ def InitializePlugin(obj):
         p = path.dirname(__file__) + "/../Examples/boomerangv4.ncc"
         obj.UploadFile = path.abspath(p)
     if FreeCAD.GuiUp:
-        UsbPoolGui._ViewProviderPool(obj.ViewObject)
-
+        TinyG2Gui._ViewProviderPool(obj.ViewObject)
 
 def getUsbThread(obj):
-    return UsbPoolDriver.UsbThread(obj)
+    return TinyG2Driver.UsbThread(obj)
 
 
-def getUsbPoolPanel(obj):
-    if FreeCAD.GuiUp:
-        return UsbPoolPanel.UsbPoolPanel(obj)
-    return None
+class TaskWatcher:
+
+    def __init__(self):
+        self.title = b"TinyG2 monitor"
+        self.icon = b"icons:Usb-Pool.xpm"
+        self.model = TinyG2Panel.PoolModel()
+        self.widgets = [TinyG2Panel.UsbPoolPanel(self.model)]
+
+    def shouldShow(self):
+        s = FreeCADGui.Selection.getSelection()
+        if len(s):
+            o = s[0]
+            if UsbCommand.getObjectType(o) == "App::UsbPool"\
+               and o.ViewObject.Proxy.Type == "Gui::UsbTinyG2":
+                self.model.setModel(o)
+                return True
+        self.model.on_change(None)
+        return False

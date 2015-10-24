@@ -21,13 +21,31 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Icons directory initialization """
+""" Resources directory initialization """
 from __future__ import unicode_literals
 
-from os import path
+import os, imp
 from PySide.QtCore import QDir
+from Gui import UsbPortPanel
+import FreeCADGui
 
-# Icons directory relative path
+
+# Resources directory relative path
 ICONS_PATH = "/Icons"
-# use "icons" as prefix which we used in the .py file (pixmap: icons:file.svg)
-QDir.addSearchPath("icons", path.dirname(__file__) + ICONS_PATH)
+PLUGIN_PATH = "/../Plugins"
+
+def initIcons():
+    # use "icons" as prefix which we used in the .py file (pixmap: icons:file.svg)
+    QDir.addSearchPath("icons", os.path.dirname(__file__) + ICONS_PATH)
+
+def initTaskWatcher():
+    p = os.path.dirname(__file__) + PLUGIN_PATH
+    p = os.path.abspath(p)
+    taskwatcher = [UsbPortPanel.TaskWatcher()]
+    for f in os.listdir(p):
+        moduleName, fileExt = os.path.splitext(f)
+        if fileExt.lower() == ".py":
+            module = imp.load_source(moduleName, os.path.join(p, f))
+            if hasattr(module, "TaskWatcher"):
+                taskwatcher.append(module.TaskWatcher())
+    FreeCADGui.Control.addTaskWatcher(taskwatcher)

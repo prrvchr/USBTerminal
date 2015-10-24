@@ -181,10 +181,15 @@ class UsbThread(QObject):
                     self.vel.emit(str(value))
                 elif key == "feed":
                     self.feed.emit(str(value))
-            self.last = list(pos)
-            self.pointx.emit(str(pos[0]))
-            self.pointy.emit(str(pos[1]))
-            self.pointz.emit(str(pos[2]))
+            if self.last[0] != pos[0]:
+                self.pointx.emit(str(pos[0]))
+                self.last[0] = pos[0]
+            if self.last[1] != pos[1]:
+                self.pointy.emit(str(pos[1]))
+                self.last[1] = pos[1]
+            if self.last[2] != pos[2]:                
+                self.pointz.emit(str(pos[2]))
+                self.last[2] = pos[2]                
             self.positions.append(pos)
             if not self.pool.ViewObject.Draw:
                 return
@@ -262,7 +267,7 @@ class UsbReader(QObject):
                         self.settings.emit(line)
                     elif line.startswith("tinyg") and self.sendsetting:
                         self.sendsetting = False
-                        self.settings.emit("eol")
+                        self.settings.emit("endofsettings")
                     self.read.emit(line + self.eol)
                 self.ctrl.open.lock()
             self.ctrl.open.unlock()
