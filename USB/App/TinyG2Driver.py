@@ -41,6 +41,7 @@ class Control():
 
     def __init__(self, buffers):
         self.buffers = QSemaphore(buffers)
+        self.commands = QSemaphore()
         self.claim = QSemaphore()
         self.open = Mutex(True)
         self.start = Mutex(False)
@@ -60,7 +61,7 @@ class UsbThread(QObject):
         QObject.__init__(self)
         self.maxbuffers = 28
         self.pool = pool
-        b = self.maxbuffers - self.pool.Buffers if self.pool.Buffers < self.maxbuffers else 0
+        b = self.maxbuffers - self.pool.Buffers
         self.ctrl = Control(b)
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
         s = io.BufferedWriter(self.pool.Asyncs[0].Async)
@@ -254,7 +255,7 @@ class UsbReader(QObject):
                                 self.ctrl.buffers.release\
                                     (buffers - self.ctrl.buffers.available())
                             if self.ctrl.buffers.available():
-                                self.ctrl.claim.acquire()
+                                self.ctrl.claim.tryAcquire(1, self.pool.Timeout)
                             else:
                                 self.claimbuffer.emit("$qr")
                             if self.pool.ViewObject.EchoFilter:

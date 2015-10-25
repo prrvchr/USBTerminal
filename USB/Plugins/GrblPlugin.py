@@ -42,7 +42,7 @@ def InitializePlugin(obj):
         obj.setEditorMode("DualPort", 1)
     if obj.DualPort:
         obj.DualPort = False
-    if "Buffers" not in obj.PropertiesList:
+    if "Timeout" not in obj.PropertiesList:
         obj.addProperty("App::PropertyIntegerConstraint",
                         "Timeout",
                         "Pool",

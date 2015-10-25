@@ -87,9 +87,10 @@ class SettingTabBar(QtGui.QTabBar):
     def on_command(self, index):
         self.command.emit(self.tabData(index))
         
-    @QtCore.Slot(bool)
-    def on_online(self, state):
-        self.setEnabled(state)
+    @QtCore.Slot(int)
+    def on_state(self, state):
+        self.setEnabled(state == 1 or state == 7)
+
 
 class UsbPoolPanel(QtGui.QTabWidget):
 
@@ -100,9 +101,9 @@ class UsbPoolPanel(QtGui.QTabWidget):
         setting = QtGui.QWidget()
         setting.setLayout(QtGui.QHBoxLayout())
         tabbar = SettingTabBar()
-        tabbar.command.connect(model.on_command)
-        model.online.connect(tabbar.on_online)
         setting.layout().addWidget(tabbar)
+        tabbar.command.connect(model.on_command)
+        model.state.connect(tabbar.on_state)
         tableview = UsbPoolView(model)
         setting.layout().addWidget(tableview)
         self.addTab(setting, "Current settings")
@@ -122,10 +123,18 @@ class UsbPoolPanel(QtGui.QTabWidget):
         obs.buffers.connect(buffers.setText)
         self.addTab(monitor, "Upload monitor")
         model.title.connect(self.on_title)
+        model.state.connect(self.on_state)
 
     @QtCore.Slot(unicode)
     def on_title(self, title):
         self.setWindowTitle("Grbl {} monitor".format(title))
+
+    @QtCore.Slot(int)
+    def on_state(self, state):
+        if state == 1:
+            self.setCurrentIndex(0)
+        elif state == 3:
+            self.setCurrentIndex(1)
 
 
 class UsbPoolView(QtGui.QTableView):
@@ -144,7 +153,7 @@ class UsbPoolView(QtGui.QTableView):
 class PoolModel(QtCore.QAbstractTableModel):
 
     title = QtCore.Signal(unicode)
-    online = QtCore.Signal(bool)
+    state = QtCore.Signal(int)
 
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
@@ -152,7 +161,7 @@ class PoolModel(QtCore.QAbstractTableModel):
         self.cmd = "$$"
         self._header = ["Cmd", "Value", "Property", "Unit"]
         self.settings = []
-        self.newsettings = []        
+        self.newsettings = []
         self.waitsettings = False
         self.changedindex = QtCore.QModelIndex()
         self.modelReset.connect(self.on_modelReset)
@@ -173,23 +182,23 @@ class PoolModel(QtCore.QAbstractTableModel):
 
     @QtCore.Slot(object, unicode)
     def on_change(self, obj, prop=None):
+        #Clear or not yet initialized
         if obj is None or self.obj is None:
             self.newsettings = []
             self.updateModel()
             return
-        elif obj != self.obj:
+        #Document Observer object and property filter...
+        elif obj != self.obj or prop not in ["Open", "Start", "Pause"]:
             return
-        if prop not in ["Open", "Start", "Pause"]:
-            return
-        if (obj.Open and not obj.Start) or (obj.Open and obj.Pause):
+        state = obj.Pause <<2 | obj.Start <<1 | obj.Open <<0
+        if state == 1 or state == 7:
             self.waitsettings = True
             self.obj.Process.on_write(self.cmd)
-            self.online.emit(True)
         else:
             self.newsettings = []
             self.updateModel()
-            self.online.emit(False)
-
+        self.state.emit(state)
+        
     @QtCore.Slot(unicode)
     def on_command(self, cmd):
         self.cmd = cmd
@@ -219,14 +228,14 @@ class PoolModel(QtCore.QAbstractTableModel):
         for j, s in enumerate(setting[i+1:]):
             if s == " ":
                 r.append(c)
-                c = ""                
+                c = ""
                 break
             c += s
         for k, s in enumerate(setting[i+j+2:]):
             if s == "," or s == ":" :
                 r.append(c)
                 break
-            c += s            
+            c += s
         r.append(setting[i+j+k+3:])
         self.newsettings.append(r)
 
@@ -312,8 +321,8 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
         if unit in ["usec", "msec"]:
             spin = QtGui.QSpinBox(parent)
             spin.setMaximum(10000)
-            spin.setMinimum(0)            
-            return spin            
+            spin.setMinimum(0)
+            return spin
         elif unit in ["mm/min", "step/mm", "mm/sec^2"]:
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setDecimals(3)
@@ -329,13 +338,13 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
         elif unit == "bool":
             combo = QtGui.QComboBox(parent)
             combo.addItem("on", "1")
-            combo.addItem("off", "0")            
+            combo.addItem("off", "0")
             return combo
         elif "0" or "1" in unit:
             spin = QtGui.QSpinBox(parent)
             spin.setMaximum(255)
-            spin.setMinimum(0)            
-            return spin            
+            spin.setMinimum(0)
+            return spin
         return QtGui.QStyledItemDelegate.createEditor(self, parent, option, index)
 
         

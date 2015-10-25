@@ -41,11 +41,17 @@ def InitializePlugin(obj):
     if "ReadOnly" in obj.getEditorMode("DualPort"):
         obj.setEditorMode("DualPort", 0)
     if "Buffers" not in obj.PropertiesList:
-        obj.addProperty("App::PropertyInteger",
+        obj.addProperty("App::PropertyIntegerConstraint",
                         "Buffers",
                         "Pool",
                         "Upload file buffers to keep free")
-        obj.Buffers = 5
+        obj.Buffers = (5,0,28,1)
+    if "Timeout" not in obj.PropertiesList:
+        obj.addProperty("App::PropertyIntegerConstraint",
+                        "Timeout",
+                        "Pool",
+                        "Buffers dump timeout (ms:0->1000)")
+        obj.Timeout = (500,0,1000,1)
     if "UploadFile" not in obj.PropertiesList:
         obj.addProperty("App::PropertyFile",
                         "UploadFile",

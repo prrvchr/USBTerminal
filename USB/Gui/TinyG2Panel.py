@@ -101,9 +101,10 @@ class SettingTabBar(QtGui.QTabBar):
     def on_command(self, index):
         self.command.emit(self.tabData(index))
         
-    @QtCore.Slot(bool)
-    def on_online(self, state):
-        self.setEnabled(state)
+    @QtCore.Slot(int)
+    def on_state(self, state):
+        self.setEnabled(state == 1 or state == 7)
+
 
 class UsbPoolPanel(QtGui.QTabWidget):
 
@@ -114,9 +115,9 @@ class UsbPoolPanel(QtGui.QTabWidget):
         setting = QtGui.QWidget()
         setting.setLayout(QtGui.QHBoxLayout())
         tabbar = SettingTabBar()
-        tabbar.command.connect(model.on_command)
-        model.online.connect(tabbar.on_online)
         setting.layout().addWidget(tabbar)
+        tabbar.command.connect(model.on_command)
+        model.state.connect(tabbar.on_state)
         tableview = UsbPoolView(model)
         setting.layout().addWidget(tableview)
         self.addTab(setting, "Current settings")
@@ -156,10 +157,18 @@ class UsbPoolPanel(QtGui.QTabWidget):
         obs.feed.connect(feed.setText)
         self.addTab(monitor, "Upload monitor")
         model.title.connect(self.on_title)
+        model.state.connect(self.on_state)
 
     @QtCore.Slot(unicode)
     def on_title(self, title):
         self.setWindowTitle("TinyG2 {} monitor".format(title))
+
+    @QtCore.Slot(int)
+    def on_state(self, state):
+        if state == 1:
+            self.setCurrentIndex(0)
+        elif state == 3:
+            self.setCurrentIndex(1)
 
 
 class UsbPoolView(QtGui.QTableView):
@@ -178,7 +187,7 @@ class UsbPoolView(QtGui.QTableView):
 class PoolModel(QtCore.QAbstractTableModel):
 
     title = QtCore.Signal(unicode)
-    online = QtCore.Signal(bool)
+    state = QtCore.Signal(int)
 
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
@@ -207,22 +216,22 @@ class PoolModel(QtCore.QAbstractTableModel):
 
     @QtCore.Slot(object, unicode)
     def on_change(self, obj, prop=None):
+        #Clear or not yet initialized
         if obj is None or self.obj is None:
             self.newsettings = []
             self.updateModel()
             return
-        elif obj != self.obj:
+        #Document Observer object and property filter...
+        elif obj != self.obj or prop not in ["Open", "Start", "Pause"]:
             return
-        if prop not in ["Open", "Start", "Pause"]:
-            return
-        if (obj.Open and not obj.Start) or (obj.Open and obj.Pause):
+        state = obj.Pause <<2 | obj.Start <<1 | obj.Open <<0
+        if state == 1 or state == 7:
             self.waitsettings = True
             self.obj.Process.on_write(self.cmd)
-            self.online.emit(True)
         else:
             self.newsettings = []
             self.updateModel()
-            self.online.emit(False)
+        self.state.emit(state)
 
     @QtCore.Slot(unicode)
     def on_command(self, cmd):
@@ -324,7 +333,7 @@ class PoolModel(QtCore.QAbstractTableModel):
         if index.column() == self._header.index("Value"):
             return QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsEnabled
         else:
-            return QtCore.Qt.ItemIsEnabled  
+            return QtCore.Qt.ItemIsEnabled
         #return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -360,7 +369,7 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
         elif editor == "RPM" or editor == "Hz" or editor == "ms":
             spin = QtGui.QSpinBox(parent)
             spin.setMaximum(50000)
-            return spin            
+            return spin
         elif editor == "deg" or editor == "in" or editor == "mm":
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setDecimals(4)
