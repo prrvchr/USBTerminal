@@ -118,26 +118,21 @@ class Pool:
 
     def execute(self, obj):
         if len(obj.Asyncs) < int(obj.DualPort) + 1:
-            FreeCAD.ActiveDocument.openTransaction(b"New Port")
-            o = FreeCAD.ActiveDocument.addObject("App::FeaturePython", "Port")
+            o = obj.Document.addObject("App::FeaturePython", "Port")
             UsbPort.Port(o)
-            # UsbPortGui._ViewProviderPort(o.ViewObject) is made with the Asyncs
-            # property change in Gui part of Plugin: updateData()
             obj.Asyncs += [o]
-            FreeCAD.ActiveDocument.commitTransaction()
-            FreeCAD.ActiveDocument.recompute()
         if self.plugin:
             self.getClass(obj, obj.Plugin, "InitializePlugin")
-            if FreeCAD.GuiUp:
-                # Need to clear selection for change take effect in property view
-                FreeCADGui.Selection.clearSelection()
-                FreeCADGui.Selection.addSelection(obj)
             self.plugin = False
+            # Need to clear selection for change take effect in property view
+            if FreeCAD.GuiUp and FreeCADGui.Selection.isSelected(obj):
+                FreeCADGui.Selection.clearSelection()
+                FreeCADGui.Selection.addSelection(obj)            
 
     def onChanged(self, obj, prop):
         if prop == "Plugin":
             if obj.Plugin:
-                self.plugin = True
+                self.plugin= True
         if prop == "Open":
             if obj.Open:
                 obj.Asyncs[0].Open = True

@@ -35,8 +35,8 @@ if FreeCAD.GuiUp:
 ''' Add/Delete App Object Plugin custom property '''
 def InitializePlugin(obj):
     for p in obj.PropertiesList:
-        if obj.getGroupOfProperty(p) in ["Plugin", "Pool"]:
-            if p not in ["Buffers", "UploadFile", "Plugin", "DualPort", "EndOfLine"]:
+        if obj.getGroupOfProperty(p) in ["Pool"]:
+            if p not in ["Buffers", "DualPort", "EndOfLine", "Timeout", "UploadFile"]:
                 obj.removeProperty(p)
     if "ReadOnly" in obj.getEditorMode("DualPort"):
         obj.setEditorMode("DualPort", 0)

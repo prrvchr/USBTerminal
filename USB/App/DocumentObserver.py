@@ -24,6 +24,9 @@
 """ Document Observer Object """
 from __future__ import unicode_literals
 
+import FreeCAD
+if FreeCAD.GuiUp:
+    import FreeCADGui
 from PySide.QtCore import QObject, Signal
 from Gui import initResources
 

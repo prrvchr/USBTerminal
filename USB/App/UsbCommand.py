@@ -34,10 +34,10 @@ if FreeCAD.GuiUp:
 class CommandPool:
 
     def GetResources(self):
-        return {b'Pixmap'  : b"icons:Usb-Pool.xpm",
-                b'MenuText': b"New Pool",
-                b'Accel'   : b"U, N",
-                b'ToolTip' : b"New Pool"}
+        return {b"Pixmap"  : b"icons:Usb-Pool.xpm",
+                b"MenuText": b"New Pool",
+                b"Accel"   : b"U, N",
+                b"ToolTip" : b"New Pool"}
 
     def IsActive(self):
         return True
@@ -47,11 +47,14 @@ class CommandPool:
             FreeCAD.newDocument()
         FreeCAD.ActiveDocument.openTransaction(b"New Pool")
         #FreeCADGui.addModule(b"App.UsbPool")
-        code = '''from App import UsbPool
+        code = '''from App import UsbPool, UsbPort
 from Gui import UsbPoolGui
 obj = FreeCAD.ActiveDocument.addObject("App::DocumentObjectGroupPython", "Pool")
 UsbPool.Pool(obj)
-UsbPoolGui._ViewProviderPool(obj.ViewObject)'''
+UsbPoolGui._ViewProviderPool(obj.ViewObject)
+o = obj.Document.addObject("App::FeaturePython", "Port")
+UsbPort.Port(o)
+obj.Asyncs += [o]'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
@@ -60,10 +63,10 @@ UsbPoolGui._ViewProviderPool(obj.ViewObject)'''
 class CommandRefresh:
 
     def GetResources(self):
-        return {b'Pixmap'  : b"icons:Usb-Refresh.xpm",
-                b'MenuText': b"Refresh port",
-                b'Accel'   : b"U, R",
-                b'ToolTip' : b"Refresh available port"}
+        return {b"Pixmap"  : b"icons:Usb-Refresh.xpm",
+                b"MenuText": b"Refresh port",
+                b"Accel"   : b"U, R",
+                b"ToolTip" : b"Refresh available port"}
 
     def IsActive(self):
         return FreeCAD.ActiveDocument is not None
@@ -91,10 +94,10 @@ obj.Update = ["Port", "Baudrate"]'''
 class CommandOpen:
 
     def GetResources(self):
-        return {b'Pixmap'  : b"icons:Usb-Terminal.xpm",
-                b'MenuText': b"Open Terminal",
-                b'Accel'   : b"U, T",
-                b'ToolTip' : b"Connect/disconnect terminal"}
+        return {b"Pixmap"  : b"icons:Usb-Terminal.xpm",
+                b"MenuText": b"Open Terminal",
+                b"Accel"   : b"U, T",
+                b"ToolTip" : b"Connect/disconnect terminal"}
 
     def IsActive(self):
         return FreeCAD.ActiveDocument is not None
@@ -121,10 +124,10 @@ obj.InList[0].Open = not obj.InList[0].Open'''
 class CommandStart:
 
     def GetResources(self):
-        return {b'Pixmap'  : b"icons:Usb-Upload.xpm",
-                b'MenuText': b"File upload",
-                b'Accel'   : b"U, F",
-                b'ToolTip' : b"Start/stop file upload"}
+        return {b"Pixmap"  : b"icons:Usb-Upload.xpm",
+                b"MenuText": b"File upload",
+                b"Accel"   : b"U, F",
+                b"ToolTip" : b"Start/stop file upload"}
 
     def IsActive(self):
         return FreeCAD.ActiveDocument is not None
@@ -151,10 +154,10 @@ obj.InList[0].Start = not obj.InList[0].Start'''
 class CommandPause:
 
     def GetResources(self):
-        return {b'Pixmap'  : b"icons:Usb-Pause.xpm",
-                b'MenuText': b"Pause file upload",
-                b'Accel'   : b"U, P",
-                b'ToolTip' : b"Pause/resume file upload"}
+        return {b"Pixmap"  : b"icons:Usb-Pause.xpm",
+                b"MenuText": b"Pause file upload",
+                b"Accel"   : b"U, P",
+                b"ToolTip" : b"Pause/resume file upload"}
 
     def IsActive(self):
         return FreeCAD.ActiveDocument is not None
@@ -180,10 +183,10 @@ obj.InList[0].Pause = not obj.InList[0].Pause'''
 
 if FreeCAD.GuiUp:
     # register the FreeCAD command
-    FreeCADGui.addCommand('Usb_Pool', CommandPool())
-    FreeCADGui.addCommand('Usb_Refresh', CommandRefresh())
-    FreeCADGui.addCommand('Usb_Open', CommandOpen())
-    FreeCADGui.addCommand('Usb_Start', CommandStart())
-    FreeCADGui.addCommand('Usb_Pause', CommandPause())
+    FreeCADGui.addCommand("Usb_Pool", CommandPool())
+    FreeCADGui.addCommand("Usb_Refresh", CommandRefresh())
+    FreeCADGui.addCommand("Usb_Open", CommandOpen())
+    FreeCADGui.addCommand("Usb_Start", CommandStart())
+    FreeCADGui.addCommand("Usb_Pause", CommandPause())
 
 FreeCAD.Console.PrintLog("Loading UsbCommand... done\n")
