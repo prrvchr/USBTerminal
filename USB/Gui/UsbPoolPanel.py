@@ -26,7 +26,6 @@ from __future__ import unicode_literals
 
 import FreeCADGui
 from PySide import QtCore, QtGui
-from App import UsbCommand
 
 
 class UsbPoolTaskPanel:
@@ -61,7 +60,7 @@ class UsbPoolTaskPanel:
         return True
 
     def isAllowedAlterDocument(self):
-        return True
+        return False
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Ok)

@@ -26,7 +26,7 @@ from __future__ import unicode_literals
 
 from PySide import QtCore, QtGui
 import FreeCAD, FreeCADGui
-from App import UsbCommand
+from Gui import initResources
 import serial
 
 
@@ -65,7 +65,7 @@ class UsbPortTaskPanel:
         return True
 
     def isAllowedAlterDocument(self):
-        return True
+        return False
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Ok)
@@ -169,8 +169,9 @@ class PySerialModel(QtCore.QAbstractTableModel):
             self.endInsertRows()
         self.layoutAboutToBeChanged.emit()
         top = self.index(0, 0, QtCore.QModelIndex())
-        bottom = self.index(self.rowCount() -1, 1, QtCore.QModelIndex())
+        bottom = self.index(self.rowCount() - 1, self.columnCount() - 1, QtCore.QModelIndex())
         self.changePersistentIndex(top, bottom)
+        if old == new: self.properties = list(self.newproperties)
         self.dataChanged.emit(top, bottom)
         self.layoutChanged.emit()
 
@@ -222,7 +223,7 @@ class TaskWatcher:
         s = FreeCADGui.Selection.getSelection()
         if len(s):
             o = s[0]
-            if UsbCommand.getObjectType(o) == "App::UsbPort":
+            if initResources.getObjectType(o) == "App::UsbPort":
                 self.model.setModel(o)
                 return True
         self.model.on_change(None)

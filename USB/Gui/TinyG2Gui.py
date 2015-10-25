@@ -144,9 +144,8 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 obj.Process.feed.connect(obs.feed)
 
     def setEdit(self, vobj, mode=0):
-        # this is executed when the object is double-clicked in the tree 
-        #o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
-        taskPanel = TinyG2Panel.UsbPoolTaskPanel(vobj.Object)
+        # this is executed when the object is double-clicked in the tree
         if FreeCADGui.Control.activeDialog():
-            FreeCADGui.Control.closeDialog()
-        FreeCADGui.Control.showDialog(taskPanel)
+            return
+        t = TinyG2Panel.UsbPoolTaskPanel(vobj.Object)
+        FreeCADGui.Control.showDialog(t)

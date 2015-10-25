@@ -24,7 +24,7 @@
 """ Grbl Plugin Driver Thread object (with file upload) """
 from __future__ import unicode_literals
 
-import io
+import io, serial, Queue
 import serial
 from PySide.QtCore import QThread, QObject, QWaitCondition, QSemaphore, QMutex, Signal, Slot
 from FreeCAD import Console
@@ -41,7 +41,7 @@ class Control():
 
     def __init__(self, buffers):
         self.buffers = QSemaphore(buffers)
-        self.cmdlen = Mutex([])
+        self.commands = Queue.Queue()
         self.claim = QSemaphore()
         self.open = Mutex(True)
         self.start = Mutex(False)
@@ -107,10 +107,10 @@ class UsbThread(QObject):
         self.ctrl.start.lock()
         self.ctrl.start.value = False
         self.ctrl.start.unlock()
-        while self.ctrl.buffers.available() < self.maxbuffers:
-            self.ctrl.buffers.release()
         if self.pool.Pause:
             self.resume()
+        while self.ctrl.buffers.available() < self.maxbuffers:
+            self.ctrl.buffers.release()
 
     @Slot()
     def on_stop(self):
@@ -145,6 +145,7 @@ class UsbReader(QObject):
     finished = Signal()
     read = Signal(unicode)
     buffers = Signal(unicode)
+    settings = Signal(unicode)    
 
     def __init__(self, pool, ctrl):
         QObject.__init__(self)
@@ -153,6 +154,7 @@ class UsbReader(QObject):
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
         s = io.BufferedReader(self.pool.Asyncs[0].Async)
         self.sio = io.TextIOWrapper(s, newline = self.eol)
+        self.sendsetting = False        
 
     @Slot()
     def process(self):
@@ -167,21 +169,21 @@ class UsbReader(QObject):
                 line = self.sio.readline()
                 if len(line):
                     line = line.strip()
-                    self.ctrl.start.lock()
-                    if self.ctrl.start.value:
-                        self.ctrl.start.unlock()
+                    if not self.ctrl.commands.empty():
                         if line.startswith("ok"):
-                            self.ctrl.cmdlen.lock()
-                            b = self.ctrl.cmdlen.value.pop(0)
-                            self.ctrl.cmdlen.unlock()                            
-                            self.ctrl.buffers.release(b)
+                            self.ctrl.buffers.release(self.ctrl.commands.get())
+                            self.ctrl.commands.task_done()
                             self.buffers.emit(str(self.ctrl.buffers.available()))
-                            if self.ctrl.buffers.available() > self.pool.Buffers:
-                                self.ctrl.claim.tryAcquire(1, 1000)
+                            if self.ctrl.buffers.available():
+                                self.ctrl.claim.tryAcquire(1, self.pool.Timeout)
                         elif line.startswith("error"):
                             self.pool.Pause = True
-                    else:
-                        self.ctrl.start.unlock()
+                    if line.startswith("$"):
+                        self.sendsetting = True
+                        self.settings.emit(line)
+                    elif line.startswith("ok") and self.sendsetting:
+                        self.sendsetting = False
+                        self.settings.emit("endofsettings")
                     self.read.emit(line + self.eol)
                 self.ctrl.open.lock()
             self.ctrl.open.unlock()
@@ -238,9 +240,7 @@ class UsbUploader(QObject):
                     if not self.ctrl.buffers.tryAcquire(l):
                         self.ctrl.claim.release()
                         self.ctrl.buffers.acquire(l)
-                    self.ctrl.cmdlen.lock()
-                    self.ctrl.cmdlen.value.append(l)
-                    self.ctrl.cmdlen.unlock()                           
+                    self.ctrl.commands.put(l)                        
                     self.line.emit(str(i))
                     self.gcode.emit(line.strip())
                     self.ctrl.start.lock()
@@ -249,6 +249,7 @@ class UsbUploader(QObject):
                         break
                     else:
                         self.ctrl.start.unlock()
+            self.ctrl.commands.join()
         except Exception as e:
             msg = "Error occurred in UsbUploader thread process: {}\n"
             Console.PrintError(msg.format(e))

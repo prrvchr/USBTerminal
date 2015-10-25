@@ -77,6 +77,9 @@ class UsbThread(QObject):
         self.reader.claimbuffer.connect(self.on_write)
         self.thread.start()
 
+    def __delete__(self):
+        print("tread deleted")
+
     def close(self):
         if self.pool.Start:
             self.stop()
@@ -219,6 +222,9 @@ class UsbReader(QObject):
         s = io.BufferedReader(self.pool.Asyncs[0].Async)
         self.sio = io.TextIOWrapper(s, newline = self.eol)
         self.sendsetting = False
+
+    def __delete__(self):
+        print("tread deleted")
 
     @Slot()
     def process(self):

@@ -62,7 +62,7 @@ class UsbPoolTaskPanel:
         return True
 
     def isAllowedAlterDocument(self):
-        return True
+        return False
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Ok)
@@ -100,7 +100,10 @@ class SettingTabBar(QtGui.QTabBar):
     @QtCore.Slot(int)
     def on_command(self, index):
         self.command.emit(self.tabData(index))
-
+        
+    @QtCore.Slot(bool)
+    def on_online(self, state):
+        self.setEnabled(state)
 
 class UsbPoolPanel(QtGui.QTabWidget):
 
@@ -112,6 +115,7 @@ class UsbPoolPanel(QtGui.QTabWidget):
         setting.setLayout(QtGui.QHBoxLayout())
         tabbar = SettingTabBar()
         tabbar.command.connect(model.on_command)
+        model.online.connect(tabbar.on_online)
         setting.layout().addWidget(tabbar)
         tableview = UsbPoolView(model)
         setting.layout().addWidget(tableview)
@@ -174,6 +178,7 @@ class UsbPoolView(QtGui.QTableView):
 class PoolModel(QtCore.QAbstractTableModel):
 
     title = QtCore.Signal(unicode)
+    online = QtCore.Signal(bool)
 
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
@@ -182,6 +187,7 @@ class PoolModel(QtCore.QAbstractTableModel):
         self._header = ["Cmd", "Property", "Value", "Unit"]
         self.settings = []
         self.newsettings = []
+        self.waitsettings = False
         self.changedindex = QtCore.QModelIndex()
         self.modelReset.connect(self.on_modelReset)
         obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
@@ -210,19 +216,26 @@ class PoolModel(QtCore.QAbstractTableModel):
         if prop not in ["Open", "Start", "Pause"]:
             return
         if (obj.Open and not obj.Start) or (obj.Open and obj.Pause):
+            self.waitsettings = True
             self.obj.Process.on_write(self.cmd)
+            self.online.emit(True)
         else:
             self.newsettings = []
             self.updateModel()
+            self.online.emit(False)
 
     @QtCore.Slot(unicode)
     def on_command(self, cmd):
         self.cmd = cmd
+        self.waitsettings = True
         self.obj.Process.on_write(cmd)
 
     @QtCore.Slot(unicode)
     def on_settings(self, setting):
-        if setting == "endofsettings":
+        if not self.waitsettings:
+            return
+        elif setting == "endofsettings":
+            self.waitsettings = False
             if self.changedindex.isValid():
                 self.updateIndex()
             else:
@@ -295,6 +308,7 @@ class PoolModel(QtCore.QAbstractTableModel):
         return None
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+        self.waitsettings = True
         self.changedindex = index
         i = self._header.index("Cmd")
         cmd = self.data(self.index(index.row(), i)).strip("[]")

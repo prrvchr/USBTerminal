@@ -25,7 +25,7 @@
 from __future__ import unicode_literals
 
 from PySide.QtCore import QObject, Signal
-from App import UsbCommand
+from Gui import initResources
 
 
 class DocumentObserver(QObject):
@@ -49,10 +49,10 @@ class DocumentObserver(QObject):
         pass
 
     def slotChangedObject(self, obj, prop):
-        if UsbCommand.getObjectType(obj) == "App::UsbPool":
+        if initResources.getObjectType(obj) == "App::UsbPool":
             if prop in ["Open", "Start", "Pause"]:
                 self.changedPool.emit(obj, prop)
-        elif UsbCommand.getObjectType(obj) == "App::UsbPort":
+        elif initResources.getObjectType(obj) == "App::UsbPort":
             self.changedPort.emit(obj)
 
     def slotUndoDocument(self, doc):

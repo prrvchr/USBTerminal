@@ -28,16 +28,7 @@ import FreeCAD
 
 if FreeCAD.GuiUp:
     import FreeCADGui
-
-
-def getObjectType(obj):
-    if not obj or (obj.TypeId != "App::DocumentObjectGroupPython"
-                   and obj.TypeId != "App::FeaturePython"):
-        return None
-    if "Proxy" in obj.PropertiesList:
-        if hasattr(obj.Proxy, "Type"):
-            return obj.Proxy.Type
-    return None
+    from Gui import initResources
 
 
 class CommandPool:
@@ -83,11 +74,11 @@ class CommandRefresh:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
         obj = s[0]
-        if getObjectType(obj) == "App::UsbPool":
+        if initResources.getObjectType(obj) == "App::UsbPool":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 for o in obj.Asyncs:
     o.Update = ["Port", "Baudrate"]'''
-        elif getObjectType(obj) == "App::UsbPort":
+        elif initResources.getObjectType(obj) == "App::UsbPort":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.Update = ["Port", "Baudrate"]'''
         else:
@@ -114,10 +105,10 @@ class CommandOpen:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
         obj = s[0]
-        if getObjectType(obj) == "App::UsbPool":
+        if initResources.getObjectType(obj) == "App::UsbPool":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.Open = not obj.Open'''
-        elif getObjectType(obj) == "App::UsbPort":
+        elif initResources.getObjectType(obj) == "App::UsbPort":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.InList[0].Open = not obj.InList[0].Open'''
         else:
@@ -144,10 +135,10 @@ class CommandStart:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
         obj = s[0]
-        if getObjectType(obj) == "App::UsbPool":
+        if initResources.getObjectType(obj) == "App::UsbPool":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.Start = not obj.Start'''
-        elif getObjectType(obj) == "App::UsbPort":
+        elif initResources.getObjectType(obj) == "App::UsbPort":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.InList[0].Start = not obj.InList[0].Start'''
         else:
@@ -174,10 +165,10 @@ class CommandPause:
             FreeCAD.Console.PrintError("Selection has no elements!\n")
             return
         obj = s[0]
-        if getObjectType(obj) == "App::UsbPool":
+        if initResources.getObjectType(obj) == "App::UsbPool":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.Pause = not obj.Pause'''
-        elif getObjectType(obj) == "App::UsbPort":
+        elif initResources.getObjectType(obj) == "App::UsbPort":
             code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
 obj.InList[0].Pause = not obj.InList[0].Pause'''
         else:

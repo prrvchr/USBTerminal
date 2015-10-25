@@ -26,10 +26,10 @@ from __future__ import unicode_literals
 
 import FreeCAD
 from os import path
-from App import UsbCommand, TinyG2Driver
+from App import TinyG2Driver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import TinyG2Gui, TinyG2Panel, UsbPortPanel
+    from Gui import TinyG2Gui, TinyG2Panel, UsbPortPanel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
@@ -72,7 +72,7 @@ class TaskWatcher:
         s = FreeCADGui.Selection.getSelection()
         if len(s):
             o = s[0]
-            if UsbCommand.getObjectType(o) == "App::UsbPool"\
+            if initResources.getObjectType(o) == "App::UsbPool"\
                and o.ViewObject.Proxy.Type == "Gui::UsbTinyG2":
                 self.model.setModel(o)
                 return True

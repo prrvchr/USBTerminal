@@ -28,7 +28,7 @@ import FreeCAD
 from App import UsbCommand, DefaultDriver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import UsbPoolGui, UsbPoolPanel, UsbPortPanel
+    from Gui import UsbPoolGui, UsbPoolPanel, UsbPortPanel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
@@ -60,7 +60,7 @@ class TaskWatcher:
         s = FreeCADGui.Selection.getSelection()
         if len(s):
             o = s[0]
-            if UsbCommand.getObjectType(o) == "App::UsbPool"\
+            if initResources.getObjectType(o) == "App::UsbPool"\
                and o.ViewObject.Proxy.Type == "Gui::UsbPool":
                 self.model.setModel(o)
                 return True

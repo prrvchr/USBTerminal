@@ -26,8 +26,6 @@ from __future__ import unicode_literals
 
 import os, imp
 from PySide.QtCore import QDir
-from Gui import UsbPortPanel
-import FreeCADGui
 
 
 # Resources directory relative path
@@ -38,14 +36,21 @@ def initIcons():
     # use "icons" as prefix which we used in the .py file (pixmap: icons:file.svg)
     QDir.addSearchPath("icons", os.path.dirname(__file__) + ICONS_PATH)
 
-def initTaskWatcher():
+def initTaskWatcher(taskwatcher):
     p = os.path.dirname(__file__) + PLUGIN_PATH
     p = os.path.abspath(p)
-    taskwatcher = [UsbPortPanel.TaskWatcher()]
     for f in os.listdir(p):
         moduleName, fileExt = os.path.splitext(f)
         if fileExt.lower() == ".py":
             module = imp.load_source(moduleName, os.path.join(p, f))
             if hasattr(module, "TaskWatcher"):
                 taskwatcher.append(module.TaskWatcher())
-    FreeCADGui.Control.addTaskWatcher(taskwatcher)
+
+def getObjectType(obj):
+    if not obj or (obj.TypeId != "App::DocumentObjectGroupPython"
+                   and obj.TypeId != "App::FeaturePython"):
+        return None
+    if "Proxy" in obj.PropertiesList:
+        if hasattr(obj.Proxy, "Type"):
+            return obj.Proxy.Type
+    return None

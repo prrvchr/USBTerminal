@@ -70,8 +70,10 @@ class UsbWorkbench(Workbench):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        from Gui import initResources
-        initResources.initTaskWatcher()
+        from Gui import initResources, UsbPortPanel
+        taskwatcher = [UsbPortPanel.TaskWatcher()]
+        initResources.initTaskWatcher(taskwatcher)
+        FreeCADGui.Control.addTaskWatcher(taskwatcher)
         Log("USB workbench activated\n")
 
     def Deactivated(self):

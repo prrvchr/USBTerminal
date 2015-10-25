@@ -100,12 +100,11 @@ class _ViewProviderPool:
                     d.close()
 
     def setEdit(self, vobj, mode=0):
-        # this is executed when the object is double-clicked in the tree 
-        #o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
-        taskPanel = UsbPoolPanel.UsbPoolTaskPanel(vobj.Object)
+        # this is executed when the object is double-clicked in the tree
         if FreeCADGui.Control.activeDialog():
-            FreeCADGui.Control.closeDialog()
-        FreeCADGui.Control.showDialog(taskPanel)
+            return
+        t = UsbPoolPanel.UsbPoolTaskPanel(vobj.Object)
+        FreeCADGui.Control.showDialog(t)
 
     def unsetEdit(self, vobj, mode=0):
         # this is executed when the user cancels or terminates edit mode
@@ -113,8 +112,7 @@ class _ViewProviderPool:
             FreeCADGui.Control.closeDialog()
 
     def doubleClicked(self, vobj):
-        self.setEdit(vobj, 0)
-        return True
+        FreeCADGui.ActiveDocument.setEdit(vobj.Object.Name, 0)
 
     def claimChildren(self):
         return  self.Object.Asyncs

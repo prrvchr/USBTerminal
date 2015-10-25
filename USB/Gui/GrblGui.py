@@ -66,6 +66,7 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 else:
                     d = TerminalDock.TerminalDock()
                 obj.Process.reader.read.connect(d.on_write)
+                obj.Process.reader.settings.connect(obs.settings)                
                 d.read.connect(obj.Process.on_write)
                 d.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
                 d.setWindowTitle("{} terminal".format(obj.Label))
@@ -86,8 +87,7 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree 
-        #o = vobj.Object.Proxy.getClass(vobj.Object, vobj.Object.Plugin, "getUsbPoolPanel")
-        taskPanel = GrblPanel.UsbPoolTaskPanel(vobj.Object)
         if FreeCADGui.Control.activeDialog():
-            FreeCADGui.Control.closeDialog()
-        FreeCADGui.Control.showDialog(taskPanel)
+            return
+        t = GrblPanel.UsbPoolTaskPanel(vobj.Object)
+        FreeCADGui.Control.showDialog(t)

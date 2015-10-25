@@ -29,25 +29,25 @@ from os import path
 from App import UsbCommand, GrblDriver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import GrblGui, GrblPanel, UsbPortPanel
+    from Gui import GrblGui, GrblPanel, UsbPortPanel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
 def InitializePlugin(obj):
     for p in obj.PropertiesList:
         if obj.getGroupOfProperty(p) in ["Plugin", "Pool"]:
-            if p not in ["Buffers", "UploadFile", "Plugin", "DualPort", "EndOfLine"]:
+            if p not in ["Timeout", "UploadFile", "Plugin", "DualPort", "EndOfLine"]:
                 obj.removeProperty(p)
     if "ReadOnly" not in obj.getEditorMode("DualPort"):
         obj.setEditorMode("DualPort", 1)
     if obj.DualPort:
         obj.DualPort = False
     if "Buffers" not in obj.PropertiesList:
-        obj.addProperty("App::PropertyInteger",
-                        "Buffers",
+        obj.addProperty("App::PropertyIntegerConstraint",
+                        "Timeout",
                         "Pool",
-                        "Upload file buffers to keep free")
-        obj.Buffers = 5
+                        "Buffers dump timeout (ms:0->1000)")
+        obj.Timeout = (500,0,1000,1)
     if "UploadFile" not in obj.PropertiesList:
         obj.addProperty("App::PropertyFile",
                         "UploadFile",
@@ -74,7 +74,7 @@ class TaskWatcher:
         s = FreeCADGui.Selection.getSelection()
         if len(s):
             o = s[0]
-            if UsbCommand.getObjectType(o) == "App::UsbPool"\
+            if initResources.getObjectType(o) == "App::UsbPool"\
                and o.ViewObject.Proxy.Type == "Gui::UsbGrbl":
                 self.model.setModel(o)
                 return True

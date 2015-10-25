@@ -58,20 +58,15 @@ class _ViewProviderPort:
 
     def setEdit(self, vobj, mode):
         # this is executed when the object is double-clicked in the tree
-        taskPanel = UsbPortPanel.UsbPortTaskPanel(vobj.Object.InList[0])
         if FreeCADGui.Control.activeDialog():
-            FreeCADGui.Control.closeDialog()
-        FreeCADGui.Control.showDialog(taskPanel)
-        return False
+            return
+        t = UsbPortPanel.UsbPortTaskPanel(vobj.Object.InList[0])
+        FreeCADGui.Control.showDialog(t)
 
     def unsetEdit(self, vobj, mode):
         # this is executed when the user cancels or terminates edit mode
         if FreeCADGui.Control.activeDialog():
             FreeCADGui.Control.closeDialog()
-            return True
-        return False
     
     def doubleClicked(self, vobj):
-        vobj.Proxy.setEdit(vobj, 0)
-        return True
-
+        FreeCADGui.ActiveDocument.setEdit(vobj.Object.Name, 0)
