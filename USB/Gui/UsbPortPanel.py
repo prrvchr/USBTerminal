@@ -113,18 +113,18 @@ class PySerialModel(QtCore.QAbstractTableModel):
                         "dsrdtr", "dtr", "get_settings", "inter_byte_timeout",
                         "is_open", "parity", "port", "readable", "rts",
                         "rtscts", "seekable", "stopbits", "timeout", "writable",
-                        "write_timeout", "xonxoff"]
+                        "write_timeout", "xonxoff", "VERSION"]
         # "fileno" raise error on loop:// port!!!
         self.online = ["baudrate", "break_condition", "bytesize", "cd", "closed",
                        "cts", "dsr", "dsrdtr", "dtr", "get_settings",
                        "inter_byte_timeout", "in_waiting", "is_open", "isatty",
                        "out_waiting", "parity", "port", "readable", "ri",
                        "rs485_mode" "rts", "rtscts", "seekable", "stopbits",
-                       "timeout", "writable", "write_timeout", "xonxoff"]
+                       "timeout", "writable", "write_timeout", "xonxoff", "VERSION"]
         self.properties = []
         self.newproperties = []
         obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-        obs.changedPort.connect(self.on_change)
+        obs.statePort.connect(self.on_state)
         self.modelReset.connect(self.on_modelReset)
 
     @QtCore.Slot()
@@ -137,10 +137,10 @@ class PySerialModel(QtCore.QAbstractTableModel):
             self.beginResetModel()
             self.obj = obj
             self.endResetModel()
-        self.on_change(obj)
+        self.on_state(obj)
 
     @QtCore.Slot(object)
-    def on_change(self, obj):
+    def on_state(self, obj):
         if obj is None or self.obj is None:
             self.newproperties = []
             self.updateModel()
@@ -226,7 +226,7 @@ class TaskWatcher:
             if initResources.getObjectType(o) == "App::UsbPort":
                 self.model.setModel(o)
                 return True
-        self.model.on_change(None)
+        self.model.on_state(None)
         return False
 
     @QtCore.Slot(unicode)

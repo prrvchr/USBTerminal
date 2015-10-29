@@ -95,19 +95,13 @@ class PoolModel(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self.obj = None
-        self.modelReset.connect(self.on_modelReset)
-
-    @QtCore.Slot()
-    def on_modelReset(self):
-        if self.obj is not None:
-            self.title.emit(self.obj.Label)
 
     def setModel(self, obj):
         if self.obj != obj:
-            self.beginResetModel()
             self.obj = obj
-            self.endResetModel()
+            if self.obj is not None:
+                self.title.emit(self.obj.Label)
 
     @QtCore.Slot(object, unicode)
-    def on_change(self, obj, prop=None):
+    def on_state(self, obj, prop=None):
         pass

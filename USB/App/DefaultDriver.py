@@ -49,12 +49,27 @@ class UsbThread(QObject):
         self.thread = QThread(self)
         self.reader = UsbReader(self.pool, self.run)
         self.reader.moveToThread(self.thread)
+        self.reader.console.connect(self.on_console)
         self.thread.started.connect(self.reader.process)
+        # Signal the thread to quit, i.e. shut down.
         self.reader.finished.connect(self.thread.quit)
+        # Signal for deletion.
+        self.reader.finished.connect(self.reader.deleteLater)
+        # Cause the thread to be deleted only after it has fully shut down.
         self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.finished.connect(self.reader.deleteLater)
         self.thread.finished.connect(self.on_close)
         self.thread.start()
+
+    @Slot(int, unicode)
+    def on_console(self, level, msg):
+        if level == 0:
+            Console.PrintLog(msg)
+        elif level == 1:
+            Console.PrintMessage(msg)
+        elif level == 2:
+            Console.PrintWarning(msg)
+        elif level == 3:
+            Console.PrintError(msg)
 
     def close(self):
         self.run.lock()
@@ -84,13 +99,14 @@ class UsbThread(QObject):
             self.sio.write(data + self.eol)
             self.sio.flush()
         except Exception as e:
-            msg = "Error occurred in UsbWriter process: {}\n"
-            Console.PrintError(msg.format(e))
+            msg = "Error occurred in UsbWriter process: {}\n".format(e)
+            self.on_console(3, msg)
 
 
 class UsbReader(QObject):
 
     finished = Signal()
+    console = Signal(int, unicode)
     read = Signal(unicode)
 
     def __init__(self, pool, run):
@@ -106,8 +122,8 @@ class UsbReader(QObject):
         """ Loop and copy PySerial -> Terminal """
         try:
             p = self.pool.Asyncs[0].Async.port
-            msg = "{} UsbReader thread start on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, p))
+            msg = "{} UsbReader thread start on port {}... done\n".format(self.pool.Name, p)
+            self.console.emit(0, msg)
             self.run.lock()
             while self.run.value:
                 self.run.unlock()
@@ -117,10 +133,11 @@ class UsbReader(QObject):
                     self.read.emit(line + self.eol)
                 self.run.lock()
             self.run.unlock()
-            msg = "{} UsbReader thread stop on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, p))
         except Exception as e:
-            msg = "Error occurred in UsbReader thread process: {}\n"
-            Console.PrintError(msg.format(e))
+            msg = "Error occurred in UsbReader thread process: {}\n".format(e)
+            self.console.emit(3, msg)
+        else:
+            msg = "{} UsbReader thread stop on port {}... done\n".format(self.pool.Name, p)
+            self.console.emit(0, msg)
         self.finished.emit()
             

@@ -166,7 +166,7 @@ class PoolModel(QtCore.QAbstractTableModel):
         self.changedindex = QtCore.QModelIndex()
         self.modelReset.connect(self.on_modelReset)
         obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-        obs.changedPool.connect(self.on_change)
+        obs.statePool.connect(self.on_state)
         obs.settings.connect(self.on_settings)
 
     @QtCore.Slot()
@@ -177,20 +177,19 @@ class PoolModel(QtCore.QAbstractTableModel):
     def setModel(self, obj):
         self.beginResetModel()
         self.obj = obj
-        self.on_change(obj, "Open")
+        self.on_state(obj, 1)
         self.endResetModel()
 
-    @QtCore.Slot(object, unicode)
-    def on_change(self, obj, prop=None):
+    @QtCore.Slot(object, int)
+    def on_state(self, obj, state):
         #Clear or not yet initialized
         if obj is None or self.obj is None:
             self.newsettings = []
             self.updateModel()
             return
-        #Document Observer object and property filter...
-        elif obj != self.obj or prop not in ["Open", "Start", "Pause"]:
+        #Document Observer object filter...
+        elif obj != self.obj:
             return
-        state = obj.Pause <<2 | obj.Start <<1 | obj.Open <<0
         if state == 1 or state == 7:
             self.waitsettings = True
             self.obj.Process.on_write(self.cmd)

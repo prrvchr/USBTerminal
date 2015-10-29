@@ -119,12 +119,13 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 else:
                     d = TerminalDock.TerminalDock()
                 obj.Process.reader.read.connect(d.on_write)
-                obj.Process.reader.settings.connect(obs.settings)
+                obj.Process.reader.data.connect(obs.data)
+                obj.Process.reader.datadic.connect(obs.datadic)
                 d.read.connect(obj.Process.on_write)
                 d.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
                 d.setWindowTitle("{} terminal".format(obj.Label))
                 FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
-                obj.Process.on_write("$$")
+                obj.Process.on_write("?")
             else:
                 objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
@@ -136,12 +137,6 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
                 obj.Process.uploader.line.connect(obs.line)
                 obj.Process.uploader.gcode.connect(obs.gcode)
-                obj.Process.reader.buffers.connect(obs.buffers)
-                obj.Process.pointx.connect(obs.pointx)
-                obj.Process.pointy.connect(obs.pointy)
-                obj.Process.pointz.connect(obs.pointz)
-                obj.Process.vel.connect(obs.vel)
-                obj.Process.feed.connect(obs.feed)
 
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree

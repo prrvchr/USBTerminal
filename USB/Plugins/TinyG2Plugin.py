@@ -82,5 +82,5 @@ class TaskWatcher:
                and o.ViewObject.Proxy.Type == "Gui::UsbTinyG2":
                 self.model.setModel(o)
                 return True
-        self.model.on_change(None)
+        self.model.setModel(None)
         return False

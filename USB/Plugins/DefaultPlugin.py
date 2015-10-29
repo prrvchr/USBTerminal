@@ -64,5 +64,5 @@ class TaskWatcher:
                and o.ViewObject.Proxy.Type == "Gui::UsbPool":
                 self.model.setModel(o)
                 return True
-        self.model.on_change(None)
+        self.model.on_state(None)
         return False

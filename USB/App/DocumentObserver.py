@@ -24,24 +24,18 @@
 """ Document Observer Object """
 from __future__ import unicode_literals
 
-import FreeCAD
-if FreeCAD.GuiUp:
-    import FreeCADGui
 from PySide.QtCore import QObject, Signal
 from Gui import initResources
 
 
 class DocumentObserver(QObject):
 
-    changedPool = Signal(object, unicode)
-    changedPort = Signal(object)
+    statePool = Signal(object, int)
+    statePort = Signal(object)
     line = Signal(unicode)
     gcode = Signal(unicode)
-    pointx = Signal(unicode)
-    pointy = Signal(unicode)
-    pointz = Signal(unicode)
-    vel = Signal(unicode)
-    feed = Signal(unicode)
+    data = Signal(unicode)
+    datadic = Signal(dict)
     buffers = Signal(unicode)
     settings = Signal(unicode)
 
@@ -54,9 +48,10 @@ class DocumentObserver(QObject):
     def slotChangedObject(self, obj, prop):
         if initResources.getObjectType(obj) == "App::UsbPool":
             if prop in ["Open", "Start", "Pause"]:
-                self.changedPool.emit(obj, prop)
+                state = obj.Pause <<2 | obj.Start <<1 | obj.Open <<0
+                self.statePool.emit(obj, state)
         elif initResources.getObjectType(obj) == "App::UsbPort":
-            self.changedPort.emit(obj)
+            self.statePort.emit(obj)
 
     def slotUndoDocument(self, doc):
         pass

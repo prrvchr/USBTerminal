@@ -78,5 +78,5 @@ class TaskWatcher:
                and o.ViewObject.Proxy.Type == "Gui::UsbGrbl":
                 self.model.setModel(o)
                 return True
-        self.model.on_change(None)
+        self.model.on_state(None, 0)
         return False

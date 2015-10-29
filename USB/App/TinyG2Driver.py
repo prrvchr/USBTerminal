@@ -24,8 +24,7 @@
 """ TinyG2 Plugin Driver Thread object (with dual endpoint and file upload) """
 from __future__ import unicode_literals
 
-import io
-import serial
+import io, json, serial
 from PySide.QtCore import QThread, QObject, QWaitCondition, QSemaphore, QMutex, Signal, Slot
 from FreeCAD import Console
 
@@ -51,35 +50,39 @@ class Control():
 
 class UsbThread(QObject):
 
-    pointx = Signal(unicode)
-    pointy = Signal(unicode)
-    pointz = Signal(unicode)
-    vel = Signal(unicode)
-    feed = Signal(unicode)
-
     def __init__(self, pool):
         QObject.__init__(self)
-        self.maxbuffers = 28
         self.pool = pool
-        b = self.maxbuffers - self.pool.Buffers
-        self.ctrl = Control(b)
+        self.maxbuffers = 28
+        self.ctrl = Control(self.maxbuffers - self.pool.Buffers)
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
         s = io.BufferedWriter(self.pool.Asyncs[0].Async)
         self.sio = io.TextIOWrapper(s, newline = self.eol)
         self.thread = QThread(self)
         self.reader = UsbReader(self.pool, self.ctrl)
         self.reader.moveToThread(self.thread)
+        self.reader.console.connect(self.on_console)
         self.thread.started.connect(self.reader.process)
+        # Signal the thread to quit, i.e. shut down.
         self.reader.finished.connect(self.thread.quit)
+        # Signal for deletion.
+        self.reader.finished.connect(self.reader.deleteLater)
+        # Cause the thread to be deleted only after it has fully shut down.
         self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.finished.connect(self.reader.deleteLater)
         self.thread.finished.connect(self.on_close)
-        self.reader.position.connect(self.on_position)
-        self.reader.claimbuffer.connect(self.on_write)
+        self.reader.write.connect(self.on_write)
         self.thread.start()
 
-    def __delete__(self):
-        print("tread deleted")
+    @Slot(int, unicode)
+    def on_console(self, level, msg):
+        if level == 0:
+            Console.PrintLog(msg)
+        elif level == 1:
+            Console.PrintMessage(msg)
+        elif level == 2:
+            Console.PrintWarning(msg)
+        elif level == 3:
+            Console.PrintError(msg)
 
     def close(self):
         if self.pool.Start:
@@ -108,12 +111,18 @@ class UsbThread(QObject):
         self.uploadthread = QThread()
         self.uploader = UsbUploader(self.pool, self.ctrl, self.sio)
         self.uploader.moveToThread(self.uploadthread)
+        self.uploader.console.connect(self.on_console)
         self.uploadthread.started.connect(self.uploader.process)
+        # Signal the thread to quit, i.e. shut down.
         self.uploader.finished.connect(self.uploadthread.quit)
+        # Signal for deletion
+        self.uploader.finished.connect(self.uploader.deleteLater)
+        # Cause the thread to be deleted only after it has fully shut down.
         self.uploadthread.finished.connect(self.uploadthread.deleteLater)
-        self.uploadthread.finished.connect(self.uploader.deleteLater)
         self.uploadthread.finished.connect(self.on_stop)
-        self.uploader.claimbuffer.connect(self.on_write)
+        self.uploader.write.connect(self.on_write)
+        self.on_write('{"sv":1}')
+        self.on_write('{sr:{line:t,posx:t,posy:t,posz:t,vel:t,feed:t,unit:t,qr:t}}')
         self.positions = []
         self.last = [0,0,0]
         if self.pool.ViewObject.Draw:
@@ -167,53 +176,18 @@ class UsbThread(QObject):
             self.sio.write(data + self.eol)
             self.sio.flush()
         except Exception as e:
-            msg = "Error occurred in UsbWriter process: {}\n"
-            Console.PrintError(msg.format(e))
-
-    @Slot(unicode)
-    def on_position(self, line):
-        try:
-            pos = list(self.last)
-            for key, value in [l.split(":") for l in line.split(",")]:
-                if key == "posx":
-                    pos[0] = float(value)
-                elif key == "posy":
-                    pos[1] = float(value)
-                elif key == "posz":
-                    pos[2] = float(value)
-                elif key == "vel":
-                    self.vel.emit(str(value))
-                elif key == "feed":
-                    self.feed.emit(str(value))
-            if self.last[0] != pos[0]:
-                self.pointx.emit(str(pos[0]))
-                self.last[0] = pos[0]
-            if self.last[1] != pos[1]:
-                self.pointy.emit(str(pos[1]))
-                self.last[1] = pos[1]
-            if self.last[2] != pos[2]:                
-                self.pointz.emit(str(pos[2]))
-                self.last[2] = pos[2]                
-            self.positions.append(pos)
-            if not self.pool.ViewObject.Draw:
-                return
-            if len(self.positions) < self.pool.ViewObject.Buffers:
-                return
-            self.pool.ViewObject.Positions += list(self.positions)
-            self.positions = []
-        except Exception as e:
-            msg = "Error occurred in ViewCrtl process: {}\n"
-            Console.PrintError(msg.format(e))
+            msg = "Error occurred in UsbWriter process: {}\n".format(e)
+            self.on_console(3, msg)
 
 
 class UsbReader(QObject):
 
     finished = Signal()
+    console = Signal(int, unicode)
     read = Signal(unicode)
-    position = Signal(unicode)
-    buffers = Signal(unicode)
-    claimbuffer = Signal(unicode)
-    settings = Signal(unicode)
+    write = Signal(unicode)
+    data = Signal(unicode)
+    datadic = Signal(dict)
 
     def __init__(self, pool, ctrl):
         QObject.__init__(self)
@@ -224,75 +198,64 @@ class UsbReader(QObject):
         self.sio = io.TextIOWrapper(s, newline = self.eol)
         self.sendsetting = False
 
-    def __delete__(self):
-        print("tread deleted")
+    @Slot()
+    def deleteLater(self):
+        pass
 
     @Slot()
     def process(self):
         """ Loop and copy PySerial -> Terminal """
         try:
             p = self.pool.Asyncs[0].Async.port
-            msg = "{} UsbReader thread start on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, p))
+            msg = "{} UsbReader thread start on port {}... done\n".format(self.pool.Name, p)
+            self.console.emit(0, msg)
             self.ctrl.open.lock()
             while self.ctrl.open.value:
                 self.ctrl.open.unlock()
                 line = self.sio.readline()
                 if len(line):
                     line = line.strip()
-                    self.ctrl.start.lock()
-                    if self.ctrl.start.value:
-                        self.ctrl.start.unlock()
-                        if line.startswith("qr:"):
-                            b = int(line.split(":")[-1])
-                            buffers = b - self.pool.Buffers\
-                                if b > self.pool.Buffers else 0
-                            self.buffers.emit(str(b))
-                            if self.ctrl.buffers.available() > buffers:
-                                self.ctrl.buffers.acquire\
-                                    (self.ctrl.buffers.available() - buffers)
-                            elif self.ctrl.buffers.available() < buffers:
-                                self.ctrl.buffers.release\
-                                    (buffers - self.ctrl.buffers.available())
-                            if self.ctrl.buffers.available():
-                                self.ctrl.claim.tryAcquire(1, self.pool.Timeout)
-                            else:
-                                self.claimbuffer.emit("$qr")
-                            if self.pool.ViewObject.EchoFilter:
-                                self.ctrl.open.lock()
-                                continue
-                        elif line.startswith("tinyg") and not self.sendsetting\
-                             and self.pool.ViewObject.EchoFilter:
-                            self.ctrl.open.lock()
-                            continue
-                        elif line.startswith("pos"):
-                            self.position.emit(line)
+                    if line.startswith("{"):
+                        data = json.loads(line)
+                        self.ctrl.start.lock()
+                        if self.ctrl.start.value:
+                            self.ctrl.start.unlock()
+                            if data.has_key("r") and data["r"].has_key("qr"):
+                                b = data["r"]["qr"]
+                                if self.ctrl.buffers.available() > b:
+                                    self.ctrl.buffers.acquire(self.ctrl.buffers.available() - b)
+                                elif self.ctrl.buffers.available() < b:
+                                    self.ctrl.buffers.release(b - self.ctrl.buffers.available())
+                                if self.ctrl.buffers.available():
+                                    self.ctrl.claim.acquire()
+                                else:
+                                    self.write.emit('{"qr:n"}')
+                        else:
+                            self.ctrl.start.unlock()
+                        self.datadic.emit(data)
+                    elif line.startswith("["):
+                        self.data.emit(line)
+                        self.read.emit(line + self.eol)
                     else:
-                        self.ctrl.start.unlock()
-                    if line.startswith("["):
-                        self.sendsetting = True
-                        self.settings.emit(line)
-                    elif line.startswith("tinyg") and self.sendsetting:
-                        self.sendsetting = False
-                        self.settings.emit("endofsettings")
-                    self.read.emit(line + self.eol)
+                        self.read.emit(line + self.eol)
                 self.ctrl.open.lock()
             self.ctrl.open.unlock()
         except Exception as e:
-            msg = "Error occurred in UsbReader thread process: {}\n"
-            Console.PrintError(msg.format(e))
+            msg = "Error occurred in UsbReader thread process: {}\n".format(e)
+            self.console.emit(3, msg)
         else:
-            msg = "{} UsbReader thread stop on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, p))
+            msg = "{} UsbReader thread stop on port {}... done\n".format(self.pool.Name, p)
+            self.console.emit(0, msg)
         self.finished.emit()
 
 
 class UsbUploader(QObject):
 
     finished = Signal()
+    console = Signal(int, unicode)
     line = Signal(unicode)
     gcode = Signal(unicode)
-    claimbuffer = Signal(unicode)
+    write = Signal(unicode)
 
     def __init__(self, pool, ctrl, sio):
         QObject.__init__(self)
@@ -312,17 +275,18 @@ class UsbUploader(QObject):
             self.sio.write(data + self.eol)
             self.sio.flush()
         except Exception as e:
-            msg = "Error occurred in UsbUploaderWriter process: {}\n"
-            Console.PrintError(msg.format(e))
+            msg = "Error occurred in UsbUploaderWriter process: {}\n".format(e)
+            self.console.emit(3, msg)
 
     @Slot()
     def process(self):
         """ Loop and copy file -> PySerial """
         try:
             s = self.pool.Asyncs[self.pool.DualPort].Async.port
-            msg = "{} UsbUploader thread start on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, s))
+            msg = "{} UsbUploader thread start on port {}... done\n".format(self.pool.Name, s)
+            self.console.emit(0, msg)
             i = 0
+            #self.buffers.emit('{"qr:n"}')
             with open(self.pool.UploadFile) as f:
                 for line in f:
                     self.ctrl.pause.lock()
@@ -333,7 +297,6 @@ class UsbUploader(QObject):
                         self.ctrl.pause.unlock()
                     i += 1
                     if not self.ctrl.buffers.tryAcquire():
-                        self.claimbuffer.emit("$qr")
                         self.ctrl.claim.release()
                         self.ctrl.buffers.acquire()
                     self.line.emit(str(i))
@@ -345,9 +308,9 @@ class UsbUploader(QObject):
                     else:
                         self.ctrl.start.unlock()
         except Exception as e:
-            msg = "Error occurred in UsbUploader thread process: {}\n"
-            Console.PrintError(msg.format(e))
+            msg = "Error occurred in UsbUploader thread process: {}\n".format(e)
+            self.console.emit(3, msg)
         else:
-            msg = "{} UsbUploader thread stop on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, s))
+            msg = "{} UsbUploader thread stop on port {}... done\n".format(self.pool.Name, s)
+            self.console.emit(0, msg)
         self.finished.emit()
