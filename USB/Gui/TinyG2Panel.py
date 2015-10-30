@@ -165,6 +165,7 @@ class UsbPoolPanel(QtGui.QTabWidget):
         model.stat.connect(stat.setText)
         self.addTab(monitor, "Upload monitor")
         model.title.connect(self.on_title)
+        model.state.connect(self.on_state)
 
     @QtCore.Slot(unicode)
     def on_title(self, title):
@@ -172,6 +173,8 @@ class UsbPoolPanel(QtGui.QTabWidget):
 
     @QtCore.Slot(int)
     def on_state(self, state):
+        self.setTabEnabled(0, state == 1 or state == 7)
+        self.setTabEnabled(1, state == 3 or state == 7)
         if state == 1:
             self.setCurrentIndex(0)
         elif state == 3:
@@ -179,17 +182,32 @@ class UsbPoolPanel(QtGui.QTabWidget):
 
 
 class UsbPoolView(QtGui.QTreeView):
+    
+    unit = QtCore.Signal(QtCore.QPoint, int)
+
     def __init__(self, model):
         QtGui.QTreeView.__init__(self)
         i = model._header.index("Value")
         self.setItemDelegateForColumn(i, PoolDelegate(self))
         self.setModel(model)
+        self.header().setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.header().customContextMenuRequested.connect(self.on_unit)
+        self.unit.connect(model.on_unit)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         model.rootindex.connect(self.on_rootindex)
+        model.state.connect(self.on_state)
 
     @QtCore.Slot(QtCore.QModelIndex)
     def on_rootindex(self, index):
         self.setRootIndex(index)
+
+    @QtCore.Slot(int)
+    def on_state(self, state):
+        self.setEnabled(state == 1 or state == 7)
+
+    @QtCore.Slot(int)
+    def on_unit(self, pos):
+        self.unit.emit(self.mapToGlobal(pos), self.header().logicalIndexAt(pos))
 
 
 class PoolModel(QtCore.QAbstractItemModel):
@@ -211,27 +229,60 @@ class PoolModel(QtCore.QAbstractItemModel):
         self.obj = None
         keys = {QtCore.Qt.UserRole + 1: b"command"}
         self.setRoleNames(keys)
+        self.unit = 0
+        self.waitunit = False
         self.command = "r"
-        self.oldstate = 0
+        self.backstate = 0
         self.positions = []
         self.lastposition = [0,0,0]
-        self.nodedata = []
-        self._header = ["Command", "Value", "Description", "Unit"]
-        self.beginResetModel()
-        self.root = Node(None, "r")
-        self.deeproot = None
+        self._header = ("Command", "Value", "Description", ("Unit (inches)", "Unit (mm)"))
         self.initialized = False
         self.lastcmd = {"$$":"g30c"}
         self.initcmd = "$$"
-        self.initjson = '{"o":n}\n{"sys":n}\n{"p1":n}\n{"q":n}\n{"m":n}\n{"r":n}'
-        self.waitresponse = False
-        self.waitextra = False
+        self.waitcmd = False
+        self.initjson = '{"unit":n}\n{"o":n}\n{"sys":n}\n{"p1":n}\n{"q":n}\n{"m":n}\n{"r":n}'
+        self.waitjson = False
         self.updateindex = QtCore.QModelIndex()
+        self.deeproot = None
+        self.beginResetModel()
+        self.root = Node(None, "r")
+        self.endResetModel()
         obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
         obs.statePool.connect(self.on_state)
         obs.datadic.connect(self.on_datadic)
         obs.data.connect(self.on_data)
-        self.endResetModel() 
+
+    @QtCore.Slot()
+    def on_inches(self):
+        if self.unit == 0:
+            return
+        self.waitjson = True
+        self.waitunit = True
+        self.obj.Process.on_write('G20\n{"unit":n}')
+
+    @QtCore.Slot()
+    def on_mm(self):
+        if self.unit == 1:
+            return
+        self.waitjson = True
+        self.waitunit = True
+        self.obj.Process.on_write('G21\n{"unit":n}')
+
+    @QtCore.Slot(QtCore.QPoint, int)
+    def on_unit(self, pos, index):
+        if index != len(self._header) -1:
+            return
+        menu = QtGui.QMenu()
+        inches = menu.addAction("Unit (inches)")
+        inches.triggered.connect(self.on_inches)
+        mm = menu.addAction("Unit (mm)")
+        mm.triggered.connect(self.on_mm)
+        menu.exec_(pos)
+
+    @QtCore.Slot(unicode)
+    def on_tabIndex(self, command):
+        self.command = command
+        self.setrootindex()
 
     def setrootindex(self):
         i = QtCore.QModelIndex()
@@ -242,55 +293,115 @@ class PoolModel(QtCore.QAbstractItemModel):
 
     def setModel(self, obj):
         if obj is None:
-            self.emptyNode()
+            self.rootToCache()
             return
         if self.obj is None or self.obj != obj:
             self.obj = obj
             self.title.emit("TinyG2 {} monitor".format(obj.Label))
-        self.on_state(obj, self.oldstate)
+            self.initModel(self.backstate, 0)
+        else:
+            self.initModel(self.backstate, self.backstate)
 
     @QtCore.Slot(object, int)
     def on_state(self, obj, state):
         #Document Observer object filter...
         if obj != self.obj:
             return
+        self.initModel(state, self.backstate)
+        self.backstate = state
+
+    def initModel(self, state, backstate):
         if state == 1 or state == 7:
-            if self.oldstate == 0:
-                self.initialized = False
-                self.callResponse()
+            if backstate == 0:
+                self.initRoot()
             else:
-                self.fullNode()
+                self.rootFromCache()
         else:
-            self.emptyNode()
-        self.oldstate = state
+            self.rootToCache()
         self.state.emit(state)
 
-    def callResponse(self):
+    def initRoot(self):
+        self.initialized = False
+        self.waitjson = True
         self.beginResetModel()
-        self.waitresponse = True
         self.root = Node(None, "r")
         self.obj.Process.on_write(self.initjson)
 
-    def emptyNode(self):
+    def endInitRoot(self):
+        self.initialized = True
+        self.endResetModel()
+        self.setrootindex()
+        self.initNode()
+
+    def initNode(self):
+        self.waitcmd = True
+        self.obj.Process.on_write(self.initcmd)
+
+    def endInitNode(self, command, extra):
+        if not self.waitcmd:
+            return
+        if command == self.lastcmd[self.initcmd]:
+            self.waitcmd = False
+        f = QtCore.Qt.MatchFlags(QtCore.Qt.MatchRecursive)
+        q = self.match(self.index(0,0), QtCore.Qt.DisplayRole, command, 1, f)
+        if not q:
+            return
+        i = q[0]
+        self.layoutAboutToBeChanged.emit
+        self.changePersistentIndex(i, i)        
+        self.root.addChildren("r", extra)
+        self.dataChanged.emit(i, i)
+        self.layoutChanged.emit()        
+
+    def updateRoot(self, data):
+        if not self.waitjson:
+            return
+        if data.has_key("fv"):
+            return
+        if data.has_key("unit"):
+            self.unit = data["unit"]
+            if self.waitunit:
+                self.waitjson = False
+                self.waitunit = False
+                self.initModel(self.backstate, 0)
+            return
+        if data.has_key("r"):
+            if self.updateindex.isValid():
+                self.endUpdateNode()
+            elif not self.initialized:
+                self.endInitRoot()
+        else:
+            if self.updateindex.isValid():
+                self.updateNode()
+            self.root.addChildren("r", data)
+
+    def updateNode(self):
+        self.layoutAboutToBeChanged.emit
+        self.changePersistentIndex(self.updateindex, self.updateindex)
+
+    def endUpdateNode(self):
+        self.waitjson = False
+        self.dataChanged.emit(self.updateindex, self.updateindex)
+        self.updateindex = QtCore.QModelIndex()
+        self.layoutChanged.emit()
+
+    def rootToCache(self):
         self.beginResetModel()
         self.deeproot = copy.deepcopy(self.root)
         self.root = Node(None, "r")
+        self.reset()
         self.endResetModel()
 
-    def fullNode(self):
+    def rootFromCache(self):
         self.beginResetModel()
         self.root = copy.deepcopy(self.deeproot)
+        self.reset()
         self.endResetModel()
-        self.setrootindex()
-
-    @QtCore.Slot(unicode)
-    def on_tabIndex(self, command):
-        self.command = command
         self.setrootindex()
 
     @QtCore.Slot(unicode)
     def on_data(self, data):
-        if not self.waitresponse:
+        if not self.waitcmd:
             return
         r = []
         c = ""
@@ -314,6 +425,8 @@ class PoolModel(QtCore.QAbstractItemModel):
                 break
             c += s
         r.append(data[i+j+k+3:])
+        node = {}        
+        command = r[0]
         search1 = ("fbs", "m48e", "ej", "saf", "mfo", "gco", "jv", "gdi", "id", "ct",
                    "gpl", "cofp", "lim", "gpa", "spep", "cv", "tv", "coph", "mfoe", "fv",
                    "comp", "hp", "hv", "spph", "fb", "gun", "js", "ja", "qv", "spdp",
@@ -321,21 +434,19 @@ class PoolModel(QtCore.QAbstractItemModel):
         search2 = ("x", "y", "z", "a", "b", "c", "1", "2", "3", "4", "5", "6")
         search3 = ("p1")
         search4 = ("g54", "g55", "g56", "g57", "g58", "g59", "g92", "g28", "g30")
-        node = {}
-        command = r[0]
-        if r[0] in search1:
+        if command in search1:
             node = {"sys":{r[0]:[r[1], r[3]]}}
-        elif r[0].startswith(search2):
+        elif command.startswith(search2):
             n = r.pop(0)
             node = {n[:1]:{n[1:]:[r[0], r[2]]}}
-        elif r[0].startswith(search3):
+        elif command.startswith(search3):
             n = r.pop(0)
             node = {n[:2]:{n[2:]:[r[0], r[2]]}}
-        elif r[0].startswith(search4):
+        elif command.startswith(search4):
             n = r.pop(0)
             node = {n[:3]:{n[3:]:[r[0], r[2]]}}
         if node:
-            self.extra(command, node)
+            self.endInitNode(command, node)
 
     @QtCore.Slot(dict)
     def on_datadic(self, data):
@@ -347,7 +458,7 @@ class PoolModel(QtCore.QAbstractItemModel):
                     if value.has_key("sr"):
                         self.report(value["sr"])
                         break
-                self.response(value)
+                self.updateRoot(value)
             if key == "qr":
                 self.report(value)
                 break
@@ -357,41 +468,6 @@ class PoolModel(QtCore.QAbstractItemModel):
             if key == "f":
                 self.stat.emit("{}".format(value))
 
-
-    def response(self, response):
-        if not self.waitresponse:
-            return
-        if response.has_key("fv"):
-            return
-        if response.has_key("r"):
-            if self.updateindex.isValid():
-                self.waitresponse = False
-                self.dataChanged.emit(self.updateindex, self.updateindex)
-                self.updateindex = QtCore.QModelIndex()
-                self.layoutChanged.emit()
-            elif not self.initialized:
-                self.initialized = True
-                self.endResetModel()
-                self.setrootindex()
-                self.callExtra()
-        else:
-            if self.updateindex.isValid():
-                self.layoutAboutToBeChanged.emit
-                self.changePersistentIndex(self.updateindex, self.updateindex)
-            self.root.addChildren("r", response)
-
-    def callExtra(self):
-        self.waitextra = True
-        self.obj.Process.on_write(self.initcmd)
-
-    def extra(self, command, extra):
-        if not self.waitextra:
-            return
-        if command == self.lastcmd[self.initcmd]:
-            self.waitextra = False
-        self.root.addChildren("r", extra)
-
-    @QtCore.Slot(dict)
     def report(self, report):
         for key, value in report.items():
             if key == "line":
@@ -429,7 +505,10 @@ class PoolModel(QtCore.QAbstractItemModel):
             return None
         node = index.internalPointer()
         if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-            return "{}".format(getattr(node, self._header[index.column()]))
+            if index.column() == len(self._header) -1:
+                return "{}".format(getattr(node, "Unit"))
+            else:
+                return "{}".format(getattr(node, self._header[index.column()]))
         elif role == QtCore.Qt.UserRole +1:
             return node
         elif role == QtCore.Qt.BackgroundRole:
@@ -443,7 +522,7 @@ class PoolModel(QtCore.QAbstractItemModel):
         if not index.isValid():
             return False
         if role == QtCore.Qt.EditRole:
-            self.waitresponse = True
+            self.waitjson = True
             self.updateindex = index
             node = index.internalPointer()
             cmd = ""
@@ -457,7 +536,10 @@ class PoolModel(QtCore.QAbstractItemModel):
 
     def headerData(self, section, orientation=QtCore.Qt.Horizontal, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            return self._header[section]
+            if section == len(self._header) -1:
+                return self._header[-1][self.unit]
+            else:
+                return self._header[section]
         return None
 
     def flags(self, index=QtCore.QModelIndex()):
@@ -512,37 +594,37 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["ej"]:
+        elif prop == "ej":
             menus = ("text", "JSON")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["js"]:
+        elif prop == "js":
             menus = ("relaxed", "strict")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["gdi"]:
+        elif prop == "gdi":
             menus = ("G90", "G91")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["gun"]:
-            menus = ("G20", "G21")
+        elif prop == "gun":
+            menus = ("G20 inches", "G21 mm")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["gpl"]:
+        elif prop == "gpl":
             menus = ("G17", "G18", "G19")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["gpa"]:
+        elif prop == "gpa":
             menus = ("G61", "G61.1", "G64")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
@@ -560,141 +642,145 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["tv"]:
+        elif prop == "tv":
             menus = ("silent", "verbose")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["sv"]:
+        elif prop == "sv" and node.Command == "sv":
             menus = ("off", "filtered", "verbose")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["spep"]:
+        elif prop == "spep":
             menus = ("active_low", "active_high")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["spdp"]:
+        elif prop == "spdp":
             menus = ("CW_low", "CW_high")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["jv"]:
+        elif prop == "jv":
             menus = ("silent", "footer", "messages", "configs", "linenum", "verbose")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["am"]:
+        elif prop == "am":
             menus = ("disabled", "standard", "inhibited", "radius")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["hi"]:
+        elif prop == "hi":
             menus = ("disable homing", "x axis", "y axis", "z axis", "a axis", "b axis", "c axis")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["hd"]:
+        elif prop == "hd":
             menus = ("search-to-negative", "search-to-positive")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["ma"]:
+        elif prop == "ma":
             menus = ("X", "Y", "Z", "A", "B", "C")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["po"]:
+        elif prop == "po":
             menus = ("normal", "reverse")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["qv"]:
+        elif prop == "qv":
             menus = ("off", "single", "triple")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["pm"]:
+        elif prop == "pm":
             menus = ("disabled", "always on", "in cycle", "when moving")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["gco"]:
+        elif prop == "gco":
             menus = ("G54", "G55", "G56", "G57", "G58", "G59")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i+1)
             return combo
-        elif prop in ["mi"]:
+        elif prop == "mi":
             menus = ("1", "2", "4", "8", "16", "32")
             combo = QtGui.QComboBox(parent)
             for i in menus:
                 combo.addItem(i, i)
             return combo
-        elif prop in ["fr", "vm", "sv", "jm", "jh", "csl", "csh", "wsh", "wsl", "frq"]:
+        elif prop == "sv" and node.Command != "sv":
             spin = QtGui.QSpinBox(parent)
-            spin.setMaximum(50000)
-            spin.setMinimum(0)
+            spin.setRange(0, 50000)
             return spin
-        elif prop in ["si"]:
+        elif prop in ["fr", "vm", "jm", "csl", "csh", "wsh", "wsl", "frq"]:
             spin = QtGui.QSpinBox(parent)
-            spin.setMaximum(50000)
-            spin.setMinimum(100)
+            spin.setRange(0, 50000)
             return spin
-        elif prop in ["spdw"]:
+        elif prop == "jh":
+            spin = QtGui.QSpinBox(parent)
+            spin.setRange(0, 1000000)
+            return spin
+        elif prop == "si":
+            spin = QtGui.QSpinBox(parent)
+            spin.setRange(100, 50000)
+            return spin
+        elif prop == "spdw":
             spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 10000)
             spin.setDecimals(1)
-            spin.setMaximum(10000)
-            spin.setMinimum(0)
             return spin
-        elif prop in ["lv", "ja", "mt"]:
+        elif prop in ["lv", "mt"]:
             spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 10000)
             spin.setDecimals(2)
-            spin.setMaximum(10000)
-            spin.setMinimum(0)
             return spin
-        elif prop in ["mfo"]:
+        elif prop == "ja":
             spin = QtGui.QDoubleSpinBox(parent)
-            spin.setDecimals(3)
-            spin.setMaximum(2)
-            spin.setMinimum(0.05)
+            spin.setRange(0, 1000)
+            spin.setDecimals(2)
             return spin
-        elif prop in ["cph", "cpl", "ja", "pl", "wpl", "wph", "pof"]:
+        elif prop == "mfo":
             spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0.05, 2)
             spin.setDecimals(3)
-            spin.setMaximum(1)
-            spin.setMinimum(0)
             return spin
-        elif prop in ["sa"]:
+        elif prop in ["cph", "cpl", "pl", "wpl", "wph", "pof"]:
             spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 1)
             spin.setDecimals(3)
-            spin.setMaximum(10000)
-            spin.setMinimum(0)
+            return spin
+        elif prop == "sa":
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 10000)
+            spin.setDecimals(3)
             return spin
         elif prop in ["lb", "zb", "tn", "tm", "x", "y", "z", "a", "b", "c"]:
             spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(-10000, 10000)
             spin.setDecimals(3)
-            spin.setMaximum(10000)
-            spin.setMinimum(-10000)
             return spin
         elif prop in ["tr", "ct"]: #"jd"
             spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(-10000, 10000)
             spin.setDecimals(4)
-            spin.setMaximum(10000)
-            spin.setMinimum(-10000)
             return spin
         return QtGui.QStyledItemDelegate.createEditor(self, parent, option, index)
 
@@ -705,6 +791,8 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
             editor.setValue(int(index.model().data(index)))
         elif isinstance(editor, QtGui.QDoubleSpinBox):
             editor.setValue(float(index.model().data(index)))
+        elif isinstance(editor, QtGui.QLineEdit):
+            editor.setText(index.model().data(index).strip())
 
     def setModelData(self, editor, model, index):
         if isinstance(editor, QtGui.QComboBox):
@@ -713,6 +801,8 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
             model.setData(index, editor.value(), QtCore.Qt.EditRole)
         elif isinstance(editor, QtGui.QDoubleSpinBox):
             model.setData(index, editor.value(), QtCore.Qt.EditRole)
+        elif isinstance(editor, QtGui.QLineEdit):
+            model.setData(index, editor.text(), QtCore.Qt.EditRole)
 
 
 class Node(object):

@@ -233,6 +233,7 @@ class UsbReader(QObject):
                         else:
                             self.ctrl.start.unlock()
                         self.datadic.emit(data)
+                        #self.read.emit(line + self.eol)                        
                     elif line.startswith("["):
                         self.data.emit(line)
                         self.read.emit(line + self.eol)
