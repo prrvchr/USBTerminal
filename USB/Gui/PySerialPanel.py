@@ -21,28 +21,34 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" UsbPool panel Plugin object """
+""" PySerial Plugin Monitor object """
 from __future__ import unicode_literals
 
-import FreeCADGui
 from PySide import QtCore, QtGui
-from Gui import UsbPoolModel
+import FreeCAD, FreeCADGui
+from Gui import PySerialModel, initResources
+import serial
 
 
-class UsbPoolTaskPanel:
+class PySerialTaskPanel:
 
     def __init__(self, obj):
-        model = UsbPoolModel.PoolModel()
-        panel = UsbPoolPanel(model)
-        model.setModel(obj)
-        self.form = panel
+        form = []
+        for o in obj.Serials:
+            model = PySerialModel.PySerialModel()
+            panel = PySerialPanel(model)
+            model.setModel(o)
+            form.append(panel)
+        self.form = form
 
     def accept(self):
-        FreeCADGui.ActiveDocument.resetEdit()
+        if FreeCADGui.ActiveDocument is not None:
+            FreeCADGui.ActiveDocument.resetEdit()
         return True
 
     def reject(self):
-        FreeCADGui.ActiveDocument.resetEdit()
+        if FreeCADGui.ActiveDocument is not None:
+            FreeCADGui.ActiveDocument.resetEdit()
         return True
 
     def clicked(self, index):
@@ -61,7 +67,7 @@ class UsbPoolTaskPanel:
         return True
 
     def isAllowedAlterDocument(self):
-        return False
+        return True
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Ok)
@@ -71,19 +77,42 @@ class UsbPoolTaskPanel:
         pass
 
 
-class UsbPoolPanel(QtGui.QGroupBox):
+class PySerialPanel(QtGui.QWidget):
 
     def __init__(self, model):
-        QtGui.QGroupBox.__init__(self)
-        self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
-        layout = QtGui.QGridLayout(self)
+        QtGui.QWidget.__init__(self)
+        self.setWindowIcon(QtGui.QIcon("icons:Usb-PySerial.xpm"))
+        self.setWindowTitle("PySerial version {}".format(serial.VERSION))
+        layout = QtGui.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        txt = QtGui.QLabel("Not implemented in this plugin!!!")
-        layout.addWidget(txt, 0, 0, 1, 1)
-        txt1 = QtGui.QLabel("Chose another plugin in Pool properties")
-        layout.addWidget(txt1, 1, 0, 1, 1)
-        model.title.connect(self.on_title)
+        tableview = PySerialView(model)
+        layout.addWidget(tableview)
 
-    @QtCore.Slot(unicode)
-    def on_title(self, title):
-        self.setWindowTitle("Usb {} monitor".format(title))
+
+class PySerialView(QtGui.QTableView):
+
+    def __init__(self, model):
+        QtGui.QTableView.__init__(self)
+        self.setModel(model)
+        self.verticalHeader().setDefaultSectionSize(22)
+        self.horizontalHeader().setStretchLastSection(True)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+
+
+class TaskWatcher:
+
+    def __init__(self):
+        self.title = b"PySerial version {}".format(serial.VERSION)
+        self.icon = b"icons:Usb-PySerial.xpm"
+        self.model = PySerialModel.PySerialModel()
+        self.widgets = [PySerialPanel(self.model)]
+
+    def shouldShow(self):
+        s = FreeCADGui.Selection.getSelection()
+        if len(s):
+            o = s[0]
+            if initResources.getObjectType(o) == "App::PySerial":
+                self.model.setModel(o)
+                return True
+        self.model.setModel(None)
+        return False

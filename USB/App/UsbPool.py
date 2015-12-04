@@ -24,14 +24,13 @@
 """ Pool document object """
 from __future__ import unicode_literals
 
-from os import path
-import serial 
-import imp
-import FreeCAD
-from App import UsbPort
+import FreeCAD, serial, os, imp 
+from PySide import QtCore
+from App import PySerial
 if FreeCAD.GuiUp:
     import FreeCADGui
-
+    from PySide import QtGui
+    from Gui import TerminalDock
 
 
 class Pool:
@@ -44,13 +43,13 @@ class Pool:
                         "Plugin",
                         "Plugin",
                         "Application Plugin driver")
-        p = path.dirname(__file__) + "/../Plugins/DefaultPlugin.py"
-        obj.Plugin = path.abspath(p)
-        """ Link to UsbPort document object """
+        p = os.path.dirname(__file__) + "/../Plugins/DefaultPlugin.py"
+        obj.Plugin = os.path.abspath(p)
+        """ Link to PySerial document object """
         obj.addProperty("App::PropertyLinkList",
-                        "Asyncs",
+                        "Serials",
                         "Base",
-                        "Link to UsbPort document object")
+                        "Link to PySerial document object")
         """ Usb Base driving property """
         obj.addProperty("App::PropertyBool",
                         "Open",
@@ -96,6 +95,31 @@ class Pool:
         self.plugin = False
         return None
 
+    def getTerminalPort(self, obj):
+        return obj.Serials[0]
+
+    def openTerminalPort(self, obj):
+        s = self.getTerminalPort(obj)
+        return s.Proxy.openPySerial(s)
+
+    def openTerminal(self, obj):
+        d = TerminalDock.TerminalDock(obj)
+        FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, d)
+
+    def closeTerminal(self, obj):
+        objname = "{}-{}".format(obj.Document.Name, obj.Name)
+        docks = FreeCADGui.getMainWindow().findChildren(QtGui.QDockWidget, objname)
+        for d in docks:
+            d.setParent(None)
+            d.close()
+
+    def getControlPort(self, obj):
+        return obj.Serials[-1]
+
+    def openControlPort(self, obj):
+        s = self.getControlPort(obj)
+        return s.Proxy.openPySerial(s)
+
     def getEndOfLine(self):
         return [b"CR",b"LF",b"CRLF"]
 
@@ -107,7 +131,7 @@ class Pool:
 
     def getClass(self, obj, source, attr):
         classInstance = None
-        moduleName, fileExt = path.splitext(path.split(source)[-1])
+        moduleName, fileExt = os.path.splitext(os.path.split(source)[-1])
         if fileExt.lower() == ".py":
             module = imp.load_source(moduleName, source)
         elif fileExt.lower() == ".pyc":
@@ -117,28 +141,22 @@ class Pool:
         return classInstance
 
     def execute(self, obj):
-        if len(obj.Asyncs) < int(obj.DualPort) + 1:
-            o = obj.Document.addObject("App::FeaturePython", "Port")
-            UsbPort.Port(o)
-            obj.Asyncs += [o]
+        if len(obj.Serials) < int(obj.DualPort) + 1:
+            o = obj.Document.addObject("App::FeaturePython", "PySerial")
+            PySerial.PySerial(o)
+            obj.Serials += [o]
         if self.plugin:
             self.getClass(obj, obj.Plugin, "InitializePlugin")
             self.plugin = False
             # Need to clear selection for change take effect in property view
             if FreeCAD.GuiUp and FreeCADGui.Selection.isSelected(obj):
                 FreeCADGui.Selection.clearSelection()
-                FreeCADGui.Selection.addSelection(obj)            
+                FreeCADGui.Selection.addSelection(obj)
 
     def onChanged(self, obj, prop):
         if prop == "Plugin":
             if obj.Plugin:
-                self.plugin= True
-        if prop == "Open":
-            if obj.Open:
-                obj.Asyncs[0].Open = True
-                obj.Process = self.getClass(obj, obj.Plugin, "getUsbThread")
-            else:
-                obj.Process.close()
+                self.plugin = True
         if prop == "Start":
             if not obj.Open:
                 if obj.Start:

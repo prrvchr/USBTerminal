@@ -29,7 +29,7 @@ from os import path
 from App import TinyG2Driver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import TinyG2Gui, TinyG2Panel, UsbPortPanel, initResources
+    from Gui import TinyG2Gui, TinyG2Model, TinyG2Panel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
@@ -62,8 +62,12 @@ def InitializePlugin(obj):
     if FreeCAD.GuiUp:
         TinyG2Gui._ViewProviderPool(obj.ViewObject)
 
+
 def getUsbThread(obj):
     return TinyG2Driver.UsbThread(obj)
+
+def getPanels(model):
+    return [TinyG2Panel.UsbPoolPanel(model)]
 
 
 class TaskWatcher:
@@ -71,8 +75,8 @@ class TaskWatcher:
     def __init__(self):
         self.title = b"TinyG2 monitor"
         self.icon = b"icons:Usb-Pool.xpm"
-        self.model = TinyG2Panel.PoolModel()
-        self.widgets = [TinyG2Panel.UsbPoolPanel(self.model)]
+        self.model = TinyG2Model.PoolModel()
+        self.widgets = getPanels(self.model)
 
     def shouldShow(self):
         s = FreeCADGui.Selection.getSelection()

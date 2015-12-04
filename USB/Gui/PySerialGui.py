@@ -21,30 +21,18 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Minimal Pool default ViewProvider Plugin object """
+""" PySerial ViewProvider document object """
 from __future__ import unicode_literals
 
 import FreeCADGui
-from PySide.QtCore import Qt
-from PySide.QtGui import QDockWidget
-from Gui import PySerialGui, TerminalDock, UsbPoolPanel
+from PySide import QtGui
+from Gui import PySerialPanel
 
 
-class _ViewProviderPool:
+class _ViewProviderPort:
 
     def __init__(self, vobj): #mandatory
-        self.Type = "Gui::UsbPool"
-        for p in vobj.PropertiesList:
-            if vobj.getGroupOfProperty(p) != "Base":
-                if p not in ["DualView"]:
-                    vobj.removeProperty(p)
-        if "DualView" not in vobj.PropertiesList:
-            vobj.addProperty("App::PropertyBool",
-                             "DualView",
-                             "Terminal",
-                             "Enable/disable terminal dualview")
-            vobj.DualView = False
-        self.Object = vobj.Object
+        self.Type = "Gui::PySerial"
         vobj.Proxy = self
 
     def __getstate__(self): #mandatory
@@ -54,53 +42,29 @@ class _ViewProviderPool:
         return None
 
     def attach(self, vobj):
-        self.Type = "Gui::UsbPool"
-        self.Object = vobj.Object
-        return
+        pass
 
     def getIcon(self):
-        return "icons:Usb-Pool.xpm"
+        return "icons:Usb-PySerial.xpm"
 
     def onChanged(self, vobj, prop): #optional
         pass
 
-    def getObjectViewType(self, vobj):
-        if not vobj or vobj.TypeId != "Gui::ViewProviderPythonFeature":
-            return None
-        if "Proxy" in vobj.PropertiesList:
-            if hasattr(vobj.Proxy, "Type"):
-                return vobj.Proxy.Type
-        return None
-
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
-        if prop == "Serials":
-            for o in obj.Serials:
-                if self.getObjectViewType(o.ViewObject) is None:
-                    PySerialGui._ViewProviderPort(o.ViewObject)
-        if prop == "Open":
-            if obj.Open:
-                if obj.Proxy.openTerminalPort(obj):
-                    obj.Proxy.openTerminal(obj)
-                else:
-                    obj.Open = False
-            else:
-                obj.Proxy.closeTerminal(obj)
-
-    def setEdit(self, vobj, mode=0):
+        pass
+    
+    def setEdit(self, vobj, mode):
         # this is executed when the object is double-clicked in the tree
         if FreeCADGui.Control.activeDialog():
             return
-        t = UsbPoolPanel.UsbPoolTaskPanel(vobj.Object)
+        t = PySerialPanel.PySerialTaskPanel(vobj.Object.InList[0])
         FreeCADGui.Control.showDialog(t)
 
-    def unsetEdit(self, vobj, mode=0):
+    def unsetEdit(self, vobj, mode):
         # this is executed when the user cancels or terminates edit mode
         if FreeCADGui.Control.activeDialog():
             FreeCADGui.Control.closeDialog()
-
+    
     def doubleClicked(self, vobj):
         FreeCADGui.ActiveDocument.setEdit(vobj.Object.Name, 0)
-
-    def claimChildren(self):
-        return  self.Object.Serials

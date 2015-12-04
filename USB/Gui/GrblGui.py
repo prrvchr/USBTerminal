@@ -56,7 +56,7 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
-        if prop == "Asyncs":
+        if prop == "Serials":
             UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
         if prop == "Open":
             if obj.Open:

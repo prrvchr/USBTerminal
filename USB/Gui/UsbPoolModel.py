@@ -21,52 +21,25 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" UsbPort ViewProvider document object """
+""" UsbPool Model Plugin object """
 from __future__ import unicode_literals
 
-import FreeCADGui
-from PySide import QtGui
-from Gui import UsbPortPanel
+from PySide import QtCore, QtGui
 
 
-class _ViewProviderPort:
+class PoolModel(QtCore.QAbstractTableModel):
 
-    def __init__(self, vobj): #mandatory
-        self.Type = "Gui::UsbPort"
-        vobj.Proxy = self
+    title = QtCore.Signal(unicode)
 
-    def __getstate__(self): #mandatory
-        return None
+    def __init__(self):
+        QtCore.QAbstractTableModel.__init__(self)
+        self.obj = None
 
-    def __setstate__(self, state): #mandatory
-        return None
+    def setModel(self, obj):
+        self.obj = obj
+        if obj is not None:
+            self.title.emit(self.obj.Label)
 
-    def attach(self, vobj):
+    @QtCore.Slot(object)
+    def on_state(self, obj):
         pass
-
-    def getIcon(self):
-        return "icons:Usb-Port.xpm"
-
-    def onChanged(self, vobj, prop): #optional
-        pass
-
-    def updateData(self, obj, prop): #optional
-        # this is executed when a property of the APP OBJECT changes
-        if prop == "Async":
-            if obj.Async is not None and FreeCADGui.Control.activeDialog():
-                obj.Label = obj.Label
-
-    def setEdit(self, vobj, mode):
-        # this is executed when the object is double-clicked in the tree
-        if FreeCADGui.Control.activeDialog():
-            return
-        t = UsbPortPanel.UsbPortTaskPanel(vobj.Object.InList[0])
-        FreeCADGui.Control.showDialog(t)
-
-    def unsetEdit(self, vobj, mode):
-        # this is executed when the user cancels or terminates edit mode
-        if FreeCADGui.Control.activeDialog():
-            FreeCADGui.Control.closeDialog()
-    
-    def doubleClicked(self, vobj):
-        FreeCADGui.ActiveDocument.setEdit(vobj.Object.Name, 0)

@@ -109,9 +109,10 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
-        if prop == "Asyncs":
+        if prop == "Serials":
             UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
         if prop == "Open":
+            objname = "{}-{}".format(obj.Document.Name, obj.Name)
             if obj.Open:
                 obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
                 if obj.ViewObject.DualView:
@@ -122,12 +123,11 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
                 obj.Process.reader.data.connect(obs.data)
                 obj.Process.reader.datadic.connect(obs.datadic)
                 d.read.connect(obj.Process.on_write)
-                d.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
+                d.setObjectName(objname)
                 d.setWindowTitle("{} terminal".format(obj.Label))
                 FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
                 obj.Process.on_write("?")
             else:
-                objname = "{}-{}".format(obj.Document.Name, obj.Name)
                 docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
                 for d in docks:
                     d.setParent(None)

@@ -24,34 +24,53 @@
 """ Document Observer Object """
 from __future__ import unicode_literals
 
-from PySide.QtCore import QObject, Signal
+import FreeCAD, FreeCADGui
+from PySide import QtCore
 from Gui import initResources
 
 
-class DocumentObserver(QObject):
+class DocumentObserver(QtCore.QObject):
 
-    statePool = Signal(object, int)
-    statePort = Signal(object)
-    line = Signal(unicode)
-    gcode = Signal(unicode)
-    data = Signal(unicode)
-    datadic = Signal(dict)
-    buffers = Signal(unicode)
-    settings = Signal(unicode)
+    changedUsbPool = QtCore.Signal(object)
+    changedPySerial = QtCore.Signal(object)
+    line = QtCore.Signal(unicode)
+    gcode = QtCore.Signal(unicode)
+    data = QtCore.Signal(unicode)
+    datadic = QtCore.Signal(dict)
+    buffers = QtCore.Signal(unicode)
+    settings = QtCore.Signal(unicode)
 
     def __init__(self):
-        QObject.__init__(self)
+        QtCore.QObject.__init__(self)
 
-    def slotDeletedObject(self, obj):
+    def slotCreatedDocument(self, doc):
         pass
 
+    def slotActivateDocument(self, doc):
+        pass
+
+    def slotDeletedDocument(self, doc):
+        if FreeCAD.GuiUp:
+            for o in doc.Objects:
+                self.slotDeletedObject(o)
+
+    def slotCreatedObject(self, obj):
+        pass
+
+    def slotDeletedObject(self, obj):
+        if FreeCAD.GuiUp:
+            typ = initResources.getObjectType(obj)
+            if typ in ("App::UsbPool", "App::PySerial") and obj.Open:
+                obj.Proxy.closeTerminal(obj)
+
     def slotChangedObject(self, obj, prop):
-        if initResources.getObjectType(obj) == "App::UsbPool":
-            if prop in ["Open", "Start", "Pause"]:
-                state = obj.Pause <<2 | obj.Start <<1 | obj.Open <<0
-                self.statePool.emit(obj, state)
-        elif initResources.getObjectType(obj) == "App::UsbPort":
-            self.statePort.emit(obj)
+        typ = initResources.getObjectType(obj)
+        if typ == "App::UsbPool":
+            if prop in ("Open", "Start", "Pause"):
+                self.changedUsbPool.emit(obj)
+        elif typ == "App::PySerial":
+            if prop in ("Open"):
+                self.changedPySerial.emit(obj)
 
     def slotUndoDocument(self, doc):
         pass

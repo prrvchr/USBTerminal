@@ -47,14 +47,14 @@ class CommandPool:
             FreeCAD.newDocument()
         FreeCAD.ActiveDocument.openTransaction(b"New Pool")
         #FreeCADGui.addModule(b"App.UsbPool")
-        code = '''from App import UsbPool, UsbPort
+        code = '''from App import UsbPool, PySerial
 from Gui import UsbPoolGui
 obj = FreeCAD.ActiveDocument.addObject("App::DocumentObjectGroupPython", "Pool")
 UsbPool.Pool(obj)
 UsbPoolGui._ViewProviderPool(obj.ViewObject)
-o = obj.Document.addObject("App::FeaturePython", "Port")
-UsbPort.Port(o)
-obj.Asyncs += [o]'''
+o = obj.Document.addObject("App::FeaturePython", "PySerial")
+PySerial.PySerial(o)
+obj.Serials += [o]'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
@@ -69,24 +69,25 @@ class CommandRefresh:
                 b"ToolTip" : b"Refresh available port"}
 
     def IsActive(self):
-        return FreeCAD.ActiveDocument is not None
+        if FreeCAD.ActiveDocument is not None:
+            s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+            if len(s):
+                obj = s[0]
+                if initResources.getObjectType(obj) == "App::UsbPool" or\
+                   initResources.getObjectType(obj) == "App::PySerial":
+                    return True
+        return False
 
     def Activated(self):
-        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if not len(s):
-            FreeCAD.Console.PrintError("Selection has no elements!\n")
-            return
-        obj = s[0]
+        obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+        code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]\n'''
         if initResources.getObjectType(obj) == "App::UsbPool":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-for o in obj.Asyncs:
-    o.Update = ["Port", "Baudrate"]'''
-        elif initResources.getObjectType(obj) == "App::UsbPort":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.Update = ["Port", "Baudrate"]'''
-        else:
-            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
-            return
+            code += '''for o in obj.Serials:
+    o.Proxy.Update = ["Port", "Baudrate"]
+    o.touch()'''
+        if initResources.getObjectType(obj) == "App::PySerial":
+            code += '''obj.Proxy.Update = ["Port", "Baudrate"]
+obj.touch()'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 
@@ -100,23 +101,22 @@ class CommandOpen:
                 b"ToolTip" : b"Connect/disconnect terminal"}
 
     def IsActive(self):
-        return FreeCAD.ActiveDocument is not None
+        if FreeCAD.ActiveDocument is not None:
+            s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+            if len(s):
+                obj = s[0]
+                if initResources.getObjectType(obj) == "App::UsbPool" or\
+                   initResources.getObjectType(obj) == "App::PySerial":
+                    return True
+        return False
 
     def Activated(self):
-        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(s) == 0:
-            FreeCAD.Console.PrintError("Selection has no elements!\n")
-            return
-        obj = s[0]
-        if initResources.getObjectType(obj) == "App::UsbPool":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.Open = not obj.Open'''
-        elif initResources.getObjectType(obj) == "App::UsbPort":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.InList[0].Open = not obj.InList[0].Open'''
-        else:
-            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
-            return
+        obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+        code = '''obj = Gui.Selection.getSelection(App.ActiveDocument.Name)[0]\n'''
+        if initResources.getObjectType(obj) == "App::PySerial":
+            obj = obj.InList[0]
+            code += '''obj = obj.InList[0]\n'''
+        code += '''obj.Open = not obj.Open'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 
@@ -130,23 +130,22 @@ class CommandStart:
                 b"ToolTip" : b"Start/stop file upload"}
 
     def IsActive(self):
-        return FreeCAD.ActiveDocument is not None
+        if FreeCAD.ActiveDocument is not None:
+            s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+            if len(s):
+                obj = s[0]
+                if (initResources.getObjectType(obj) == "App::UsbPool" and obj.Open) or\
+                   (initResources.getObjectType(obj) == "App::PySerial" and obj.InList[0].Open):
+                    return True
+        return False
 
     def Activated(self):
-        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if not len(s):
-            FreeCAD.Console.PrintError("Selection has no elements!\n")
-            return
-        obj = s[0]
+        obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+        code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]\n'''
         if initResources.getObjectType(obj) == "App::UsbPool":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.Start = not obj.Start'''
-        elif initResources.getObjectType(obj) == "App::UsbPort":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.InList[0].Start = not obj.InList[0].Start'''
-        else:
-            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
-            return
+            code += '''obj.Start = not obj.Start'''
+        if initResources.getObjectType(obj) == "App::PySerial":
+            code += '''obj.InList[0].Start = not obj.InList[0].Start'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 
@@ -160,23 +159,22 @@ class CommandPause:
                 b"ToolTip" : b"Pause/resume file upload"}
 
     def IsActive(self):
-        return FreeCAD.ActiveDocument is not None
+        if FreeCAD.ActiveDocument is not None:
+            s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
+            if len(s):
+                obj = s[0]
+                if (initResources.getObjectType(obj) == "App::UsbPool" and obj.Start) or\
+                   (initResources.getObjectType(obj) == "App::PySerial" and obj.InList[0].Start):
+                    return True
+        return False
 
     def Activated(self):
-        s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
-        if len(s) == 0:
-            FreeCAD.Console.PrintError("Selection has no elements!\n")
-            return
-        obj = s[0]
+        obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
+        code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]\n'''
         if initResources.getObjectType(obj) == "App::UsbPool":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.Pause = not obj.Pause'''
-        elif initResources.getObjectType(obj) == "App::UsbPort":
-            code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
-obj.InList[0].Pause = not obj.InList[0].Pause'''
-        else:
-            FreeCAD.Console.PrintError("Selection is not a Pool or a Port!\n")
-            return
+            code += '''obj.Pause = not obj.Pause'''
+        if initResources.getObjectType(obj) == "App::PySerial":
+            code += '''obj.InList[0].Pause = not obj.InList[0].Pause'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 

@@ -57,7 +57,7 @@ class UsbThread(QObject):
         self.maxbuffers = 127
         self.ctrl = Control(self.maxbuffers)
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
-        s = io.BufferedWriter(self.pool.Asyncs[0].Async)
+        s = io.BufferedWriter(self.pool.Serials[0].Async)
         self.sio = io.TextIOWrapper(s, newline = self.eol)
         self.thread = QThread(self)
         self.reader = UsbReader(self.pool, self.ctrl)
@@ -92,8 +92,8 @@ class UsbThread(QObject):
 
     @Slot()
     def on_close(self):
-        self.pool.Asyncs[0].Open = False
-        self.pool.Asyncs[0].purgeTouched()
+        self.pool.Serials[0].Open = False
+        self.pool.Serials[0].purgeTouched()
         if self.pool.Start:
             self.pool.Start = False
 
@@ -165,7 +165,7 @@ class UsbReader(QObject):
         self.pool = pool
         self.ctrl = ctrl
         self.eol = self.pool.Proxy.getCharEndOfLine(self.pool)
-        s = io.BufferedReader(self.pool.Asyncs[0].Async)
+        s = io.BufferedReader(self.pool.Serials[0].Async)
         self.sio = io.TextIOWrapper(s, newline = self.eol)
         self.sendsetting = False
 
@@ -173,7 +173,7 @@ class UsbReader(QObject):
     def process(self):
         """ Loop and copy PySerial -> Terminal """
         try:
-            p = self.pool.Asyncs[0].Async.port
+            p = self.pool.Serials[0].Async.port
             msg = "{} UsbReader thread start on port {}... done\n".format(self.pool.Name, p)
             self.console.emit(0, msg)
             self.ctrl.open.lock()
@@ -237,7 +237,7 @@ class UsbUploader(QObject):
     def process(self):
         """ Loop and copy file -> PySerial """
         try:
-            s = self.pool.Asyncs[self.pool.DualPort].Async.port
+            s = self.pool.Serials[self.pool.DualPort].Async.port
             msg = "{} UsbUploader thread start on port {}... done\n".format(self.pool.Name, s)
             self.console.emit(0, msg)
             i = 0

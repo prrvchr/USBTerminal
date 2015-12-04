@@ -28,7 +28,7 @@ import FreeCAD
 from App import UsbCommand, DefaultDriver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import UsbPoolGui, UsbPoolPanel, UsbPortPanel, initResources
+    from Gui import UsbPoolGui, UsbPoolPanel, UsbPoolModel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
@@ -47,13 +47,16 @@ def InitializePlugin(obj):
 def getUsbThread(obj):
     return DefaultDriver.UsbThread(obj)
 
+def getSerialThread(obj):
+    return DefaultDriver.SerialThread(obj)
+
 
 class TaskWatcher:
 
     def __init__(self):
         self.title = b"Pool monitor"
         self.icon = b"icons:Usb-Pool.xpm"
-        self.model = UsbPoolPanel.PoolModel()
+        self.model = UsbPoolModel.PoolModel()
         self.widgets = [UsbPoolPanel.UsbPoolPanel(self.model)]
 
     def shouldShow(self):
@@ -64,5 +67,5 @@ class TaskWatcher:
                and o.ViewObject.Proxy.Type == "Gui::UsbPool":
                 self.model.setModel(o)
                 return True
-        self.model.on_state(None)
+        self.model.setModel(None)
         return False

@@ -55,7 +55,7 @@ class UsbWorkbench(Workbench):
     ToolTip = "Python USB workbench"
 
     def Initialize(self):
-        from Gui import initResources, UsbPortPanel, UsbPoolPanel
+        from Gui import initResources, PySerialPanel, UsbPoolPanel
         from App import DocumentObserver, UsbPool, UsbCommand
         initResources.initIcons()
         commands = [b"Usb_Pool", b"Usb_Refresh", b"Usb_Open", b"Usb_Start", b"Usb_Pause"]
@@ -70,10 +70,10 @@ class UsbWorkbench(Workbench):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        from Gui import initResources, UsbPortPanel
-        taskwatcher = [UsbPortPanel.TaskWatcher()]
+        from Gui import initResources, PySerialPanel
+        taskwatcher = [PySerialPanel.TaskWatcher()]
         initResources.initTaskWatcher(taskwatcher)
-        FreeCADGui.Control.addTaskWatcher(taskwatcher)
+        Gui.Control.addTaskWatcher(taskwatcher)
         Log("USB workbench activated\n")
 
     def Deactivated(self):

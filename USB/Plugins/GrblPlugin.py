@@ -29,7 +29,7 @@ from os import path
 from App import UsbCommand, GrblDriver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import GrblGui, GrblPanel, UsbPortPanel, initResources
+    from Gui import GrblGui, GrblModel, GrblPanel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
@@ -67,7 +67,7 @@ class TaskWatcher:
     def __init__(self):
         self.title = b"Grbl monitor"
         self.icon = b"icons:Usb-Pool.xpm"
-        self.model = GrblPanel.PoolModel()
+        self.model = GrblModel.PoolModel()
         self.widgets = [GrblPanel.UsbPoolPanel(self.model)]
 
     def shouldShow(self):
@@ -78,5 +78,5 @@ class TaskWatcher:
                and o.ViewObject.Proxy.Type == "Gui::UsbGrbl":
                 self.model.setModel(o)
                 return True
-        self.model.on_state(None, 0)
+        self.model.setModel(None)
         return False

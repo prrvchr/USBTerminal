@@ -21,47 +21,29 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" UsbPort document object """
+""" PySerial document object """
 from __future__ import unicode_literals
 
 import serial
 from serial.tools import list_ports
-import FreeCAD
+from FreeCAD import Console
 
 
-class Port:
+class PySerial:
 
     def __init__(self, obj):
-        self.Type = "App::UsbPort"
+        self.Type = "App::PySerial"
         """ PySerial port object instance property """
-        obj.addProperty("App::PropertyPythonObject",
-                        "Async",
-                        "Base",
-                        "PySerial Serial port instance", 2)
-        obj.Async = None
+        self.PySerial = serial.serial_for_url(None, do_not_open=True)
         """ Internal property for management of data update """
-        obj.addProperty("App::PropertyStringList",
-                        "Update",
-                        "Base",
-                        "List of PySerial property to update", 2, True, True)
+        self.Update = []
         """ PySerial Base driving property """
         obj.addProperty("App::PropertyBool",
                         "Open",
                         "Base",
                         "Open/close PySerial port", 2)
         obj.Open = False
-        """ PySerial discovered port tools """
-        obj.addProperty("App::PropertyEnumeration",
-                        "Details",
-                        "Discovery tool",
-                        "Discovered ports view mode")
-        obj.Details = self.getDetails()
-        obj.Details = b"Detail"
-        obj.addProperty("App::PropertyEnumeration",
-                        "Ports",
-                        "Discovery tool",
-                        "Discovered ports (perhaps need refresh?)")
-        obj.Ports = self.getPorts(obj)
+        obj.setEditorMode("Open", 1)
         """ PySerial port property """
         obj.addProperty("App::PropertyEnumeration",
                         "Baudrate",
@@ -121,13 +103,27 @@ class Port:
                         "XonXoff", "PySerial",
                         "enable software flow control")
         obj.XonXoff = False
+        """ PySerial list_ports tools """
+        obj.addProperty("App::PropertyEnumeration",
+                        "Details",
+                        "PySerial List_ports Tool",
+                        "Discovered ports view mode")
+        obj.Details = self.getDetails()
+        obj.Details = b"Detail"
+        obj.addProperty("App::PropertyEnumeration",
+                        "Ports",
+                        "PySerial List_ports Tool",
+                        "Discovered ports (perhaps need refresh?)")
+        obj.Ports = self.getPorts(obj)
         obj.Proxy = self
 
     def __getstate__(self):
         return None
 
     def __setstate__(self, state):
-        self.Type = "App::UsbPort"
+        self.Type = "App::PySerial"
+        self.PySerial = serial.serial_for_url(None, do_not_open=True)
+        self.Update = []
         return None
 
     def getDetails(self):
@@ -140,15 +136,15 @@ class Port:
         return [x[self.getDetailsIndex(obj)] for x in list_ports.comports()]
 
     def getPortsIndex(self, obj):
-        #Get the index of the port:
+        # Get unique index of the port
         try:
-            ports = list_ports.grep("^{}$".format(obj.Ports))
-            i = self.getPorts(obj).index(ports.next()[self.getDetailsIndex(obj)])
-        except (AssertionError, StopIteration, ValueError) as e:
+            p = list_ports.grep("^{}$".format(obj.Ports))
+            i = self.getPorts(obj).index(p.next()[self.getDetailsIndex(obj)])
+        except (AssertionError, StopIteration, ValueError):
             return -1
         try:
-            ports.next()
-        except StopIteration as e:
+            p.next()
+        except StopIteration:
             return i
         return -1
 
@@ -164,86 +160,69 @@ class Port:
         obj.Baudrate = baudrate
 
     def execute(self, obj):
-        if obj.Update:
-            if "Port" in obj.Update:
+        if obj.Proxy.Update:
+            if "Port" in obj.Proxy.Update:
                 self.refreshPorts(obj)
-            if "Baudrate" in obj.Update:
+            if "Baudrate" in obj.Proxy.Update:
                 self.refreshBaudrate(obj)
-            obj.Update = []
+            obj.Proxy.Update = []
 
     def onChanged(self, obj, prop):
-        if prop == "Proxy":
-            if obj.Async is None:
-                obj.Async = serial.serial_for_url(self.getPort(obj), do_not_open=True)
-        if prop == "Label":
-            #Needed for reloading settings after creating/openning object
-            if obj.Async is not None:
-                s = self.getSettings(obj)
-                s[b"port"] = self.getPort(obj)
-                obj.Async.apply_settings(s)
-        if prop == "Open":
-            if obj.Open:
-                #Need this patch!!!!
-                s = self.getSettings(obj)
-                obj.Async = serial.serial_for_url(self.getPort(obj), do_not_open=True, **s)                
-                if not obj.Async.is_open:
-                    try:
-                        obj.Async.open()
-                    except serial.SerialException as e:
-                        msg = "Error occurred opening port: {}\n"
-                        FreeCAD.Console.PrintError(msg.format(repr(e)))
-                        obj.Open = False
-                        return
-                    else:
-                        msg = "{} opening port {}... done\n"
-                        FreeCAD.Console.PrintLog(msg.format(obj.Label, obj.Async.port))
-            elif obj.Async.is_open:
-                obj.Async.close()
-                msg = "{} closing port {}... done\n"
-                FreeCAD.Console.PrintLog(msg.format(obj.Label, obj.Async.port))
         if prop == "Details":
-            obj.Update = ["Port"]
+            obj.Proxy.Update = ["Port"]
             self.refreshPorts(obj)
-            obj.Update = []
+            obj.Proxy.Update = []
         if prop == "Ports":
-            if not obj.Update and self.getPortsIndex(obj) != -1:
+            if not obj.Proxy.Update and self.getPortsIndex(obj) != -1:
                 if self.getDetailsIndex(obj) == 0:
                     obj.Port = obj.Ports
                 else:
-                    obj.Port = "hwgrep://" + obj.Ports
+                    obj.Port = b"hwgrep://" + obj.Ports
         if prop == "Baudrate":
-            if obj.Async is not None:
-                obj.Async.baudrate = self.getBaudrate(obj)
+            self.PySerial.baudrate = self.getBaudrate(obj)
         if prop == "ByteSize":
-            if obj.Async is not None:
-                obj.Async.bytesize = self.getByteSize(obj)
+            self.PySerial.bytesize = self.getByteSize(obj)
         if prop == "DsrDtr":
-            if obj.Async is not None:
-                obj.Async.dsrdtr = self.getDsrDtr(obj)
+            self.PySerial.dsrdtr = self.getDsrDtr(obj)
         if prop == "InterByteTimeout":
-            if obj.Async is not None:
-                obj.Async.inter_byte_timeout = self.getInterByteTimeout(obj)
+            self.PySerial.inter_byte_timeout = self.getInterByteTimeout(obj)
         if prop == "Parity":
-            if obj.Async is not None:
-                obj.Async.parity = self.getParity(obj)
+            self.PySerial.parity = self.getParity(obj)
         if prop == "Port":
-            if obj.Async is not None:
-                obj.Async.port = self.getPort(obj)
+            self.PySerial.port = self.getPort(obj)
         if prop == "RtsCts":
-            if obj.Async is not None:
-                obj.Async.rtscts = self.getRtsCts(obj)
+            self.PySerial.rtscts = self.getRtsCts(obj)
         if prop == "StopBits":
-            if obj.Async is not None:
-                obj.Async.stopbits = self.getStopBits(obj)
+            self.PySerial.stopbits = self.getStopBits(obj)
         if prop == "Timeout":
-            if obj.Async is not None:
-                obj.Async.timeout = self.getTimeout(obj)
+            self.PySerial.timeout = self.getTimeout(obj)
         if prop == "WriteTimeout":
-            if obj.Async is not None:
-                obj.Async.write_timeout = self.getWriteTimeout(obj)
+            self.PySerial.write_timeout = self.getWriteTimeout(obj)
         if prop == "XonXoff":
-            if obj.Async is not None:
-                obj.Async.xonxoff = self.getXonXoff(obj)
+            self.PySerial.xonxoff = self.getXonXoff(obj)
+
+    def closeTerminal(self, obj):
+        if obj.InList and obj.InList[0].Serials[0] == obj:
+            o = obj.InList[0]
+            o.Proxy.closeTerminal(o)
+
+    def openPySerial(self, obj):
+        if not self.PySerial.is_open:
+            #self.PySerial.port = self.getPort(obj)
+            #self.PySerial.apply_settings(self.getSettings(obj))            
+            p = self.getPort(obj)
+            s = self.getSettings(obj)
+            try:
+                #self.PySerial.open()
+                self.PySerial = serial.serial_for_url(p, **s)
+            except (serial.SerialException, ValueError) as e:
+                msg = b"Error occurred opening port {}: {}\n"
+                Console.PrintError(msg.format(p, e))
+            else:
+                msg = "{} opening port {}... done\n"
+                Console.PrintLog(msg.format(obj.Label, self.PySerial.name))
+                obj.Open = True
+        return obj.Open
 
     def getSettings(self, obj):
         return {b"baudrate" : self.getBaudrate(obj),
@@ -278,7 +257,7 @@ class Port:
     def getWriteTimeout(self, obj):
         return None if obj.WriteTimeout < 0 else obj.WriteTimeout
     def getInterByteTimeout(self, obj):
-        return None if obj.InterByteTimeout < 0 else obj.InterByteTimeout    
+        return None if obj.InterByteTimeout < 0 else obj.InterByteTimeout
 
 
-FreeCAD.Console.PrintLog("Loading UsbPort... done\n")
+Console.PrintLog("Loading PySerial... done\n")
