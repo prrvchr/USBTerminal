@@ -21,51 +21,19 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Pool Gui and Driver Plugin """
+""" App Resources initialization """
 from __future__ import unicode_literals
 
-import FreeCAD
-from App import UsbCommand, DefaultDriver
-if FreeCAD.GuiUp:
-    import FreeCADGui
-    from Gui import UsbPoolGui, UsbPoolPanel, UsbPoolModel, initResources
 
+def initDevice(obj):
+    name = obj.Device.replace(" ", "")
+    device = __import__(name, ["App"])
 
-''' Add/Delete App Object Plugin custom property '''
-def InitializePlugin(obj):
-    for p in obj.PropertiesList:
-        if obj.getGroupOfProperty(p) in ["Pool"]:
-            if p not in ["DualPort", "EndOfLine"]:
-                obj.removeProperty(p)
-    if "ReadOnly" not in obj.getEditorMode("DualPort"):
-        obj.setEditorMode("DualPort", 1)
-    if obj.DualPort:
-        obj.DualPort = False
-    if FreeCAD.GuiUp:
-        UsbPoolGui._ViewProviderPool(obj.ViewObject)
-
-def getUsbThread(obj):
-    return DefaultDriver.UsbThread(obj)
-
-def getSerialThread(obj):
-    return DefaultDriver.SerialThread(obj)
-
-
-class TaskWatcher:
-
-    def __init__(self):
-        self.title = b"Pool monitor"
-        self.icon = b"icons:Usb-Pool.xpm"
-        self.model = UsbPoolModel.PoolModel()
-        self.widgets = [UsbPoolPanel.UsbPoolPanel(self.model)]
-
-    def shouldShow(self):
-        s = FreeCADGui.Selection.getSelection()
-        if len(s):
-            o = s[0]
-            if initResources.getObjectType(o) == "App::UsbPool"\
-               and o.ViewObject.Proxy.Type == "Gui::UsbPool":
-                self.model.setModel(o)
-                return True
-        self.model.setModel(None)
-        return False
+def getObjectType(obj):
+    if not obj or (obj.TypeId != "App::DocumentObjectGroupPython"
+                   and obj.TypeId != "App::FeaturePython"):
+        return None
+    if "Proxy" in obj.PropertiesList:
+        if hasattr(obj.Proxy, "Type"):
+            return obj.Proxy.Type
+    return None

@@ -25,23 +25,20 @@
 from __future__ import unicode_literals
 
 from PySide import QtCore, QtGui
-import FreeCADGui
+import FreeCADGui, serial
 
 
 class PySerialModel(QtCore.QAbstractTableModel):
 
-    title = QtCore.Signal(unicode)
-
-    def __init__(self):
+    def __init__(self, machine):
         QtCore.QAbstractTableModel.__init__(self)
-        self.obj = None
-        self.PySerial = None
+        self.machine = machine
         self._header = ["Property", "Value"]
-        # "fileno" raise error on loop:// port!!!
+        self.properties = []        
         self.allproperties = ["BAUDRATES",
                               "BYTESIZES",
                               "PARITIES",
-                              "STOPBITS",                             
+                              "STOPBITS",
                               "baudrate",
                               "break_condition",
                               "bytesize",
@@ -51,6 +48,7 @@ class PySerialModel(QtCore.QAbstractTableModel):
                               "dsr",
                               "dsrdtr",
                               "dtr",
+                              "fileno",
                               "get_settings",
                               "inter_byte_timeout",
                               "in_waiting",
@@ -70,65 +68,36 @@ class PySerialModel(QtCore.QAbstractTableModel):
                               "writable",
                               "write_timeout",
                               "xonxoff"]
-        self.properties = []
-        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-        obs.changedPySerial.connect(self.onChanged)
+        self.setModel()
 
-    @QtCore.Slot(object)
-    def onChanged(self, obj):
-        #Document Observer object filter...
-        if self.obj == obj:
-            self.setModel(obj)
+    def setModel(self):
+        self.updateModel(self.getModel())
 
-    def setModel(self, obj):
-        self.updateModel(obj, self.getProperties(obj))
+    def getModel(self):
+        return [p for p in self.allproperties if hasattr(self.machine.serial, p)]
 
-    def getProperties(self, obj):
-        #Test needed no "out_waiting" on loop:// port!!!
-        return [] if obj is None else [p for p in self.allproperties
-                                       if hasattr(obj.Proxy.PySerial, p)]
-
-    def updateModel(self, obj, properties):
-        if self.obj != obj or self.rowCount() != len(properties):
+    def updateModel(self, prop):
+        if self.rowCount() != len(prop):
             self.beginResetModel()
-            self.obj = obj
-            self.PySerial = None if obj is None else obj.Proxy.PySerial
-            self.properties = properties
+            self.properties = prop
             self.endResetModel()
-
-    def updateModel1(self, properties):
-        old = self.rowCount()
-        new = len(properties)
-        if old > new:
-            self.beginRemoveRows(QtCore.QModelIndex(), new - 1, old - 1)
-            self.removeRows(new - 1, old - new, QtCore.QModelIndex())
-            self.properties = properties
-            self.endRemoveRows()
-        elif old < new:
-            self.beginInsertRows(QtCore.QModelIndex(), old, old + new - 1)
-            self.insertRows(old, new - old, QtCore.QModelIndex())
-            self.properties = properties
-            self.endInsertRows()
-        self.layoutAboutToBeChanged.emit()
-        top = self.index(0, 0, QtCore.QModelIndex())
-        bottom = self.index(self.rowCount() - 1, self.columnCount() - 1, QtCore.QModelIndex())
-        self.changePersistentIndex(top, bottom)
-        if old == new: self.properties = properties
-        self.dataChanged.emit(top, bottom)
-        self.layoutChanged.emit()
 
     def columnCount(self, parent=QtCore.QModelIndex()):
         return len(self._header)
 
     def data(self, index=QtCore.QModelIndex(), role=QtCore.Qt.DisplayRole):
-        if not index.isValid() or self.PySerial is None:
+        if not index.isValid():
             return None
         if role == QtCore.Qt.DisplayRole:
             prop = self.properties[index.row()]
             if index.column():
-                attr = getattr(self.PySerial, prop)
+                attr = getattr(self.machine.serial, prop)
                 if hasattr(attr, "__self__"):
-                    return "{}".format(attr())
+                    try:
+                        s = "{}".format(attr())
+                    except (serial.SerialException, ValueError) as e:
+                        s = "{}".format(e)
+                    return s
                 else:
                     return "{}".format(attr)
             else:
@@ -147,6 +116,6 @@ class PySerialModel(QtCore.QAbstractTableModel):
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
     def rowCount(self, parent=QtCore.QModelIndex()):
-        if parent.isValid() or self.PySerial is None:
+        if parent.isValid():
             return 0
         return len(self.properties)

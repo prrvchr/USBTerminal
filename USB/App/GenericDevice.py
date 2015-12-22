@@ -21,69 +21,44 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" TinyG2 Gui and Driver Plugin """
+""" Pool Gui and Driver Plugin """
 from __future__ import unicode_literals
 
 import FreeCAD
-from os import path
-from App import TinyG2Driver
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import TinyG2Gui, TinyG2Model, TinyG2Panel, initResources
+    from Gui import UsbPoolGui, UsbPoolPanel, UsbPoolModel, initResources
 
 
 ''' Add/Delete App Object Plugin custom property '''
-def InitializePlugin(obj):
+def initDevice(obj, device, extra):
     for p in obj.PropertiesList:
-        if obj.getGroupOfProperty(p) in ["Pool"]:
-            if p not in ["Buffers", "DualPort", "EndOfLine", "Timeout", "UploadFile"]:
+        if obj.getGroupOfProperty(p) in ("Driver"):
+            if p not in ("Device"):
                 obj.removeProperty(p)
-    if "ReadOnly" in obj.getEditorMode("DualPort"):
-        obj.setEditorMode("DualPort", 0)
-    if "Buffers" not in obj.PropertiesList:
-        obj.addProperty("App::PropertyIntegerConstraint",
-                        "Buffers",
-                        "Pool",
-                        "Upload file buffers to keep free")
-        obj.Buffers = (5,0,28,1)
-    if "Timeout" not in obj.PropertiesList:
-        obj.addProperty("App::PropertyIntegerConstraint",
-                        "Timeout",
-                        "Pool",
-                        "Buffers dump timeout (ms:0->1000)")
-        obj.Timeout = (500,0,1000,1)
-    if "UploadFile" not in obj.PropertiesList:
-        obj.addProperty("App::PropertyFile",
-                        "UploadFile",
-                        "Pool",
-                        "Files to upload")
-        p = path.dirname(__file__) + "/../Examples/boomerangv4.ncc"
-        obj.UploadFile = path.abspath(p)
+    if "ReadOnly" not in obj.getEditorMode("DualPort"):
+        obj.setEditorMode("DualPort", 1)
+    if obj.DualPort:
+        obj.DualPort = False
+    obj.Device = device
     if FreeCAD.GuiUp:
-        TinyG2Gui._ViewProviderPool(obj.ViewObject)
-
-
-def getUsbThread(obj):
-    return TinyG2Driver.UsbThread(obj)
-
-def getPanels(model):
-    return [TinyG2Panel.UsbPoolPanel(model)]
+        UsbPoolGui._ViewProviderPool(obj.ViewObject)
 
 
 class TaskWatcher:
 
     def __init__(self):
-        self.title = b"TinyG2 monitor"
+        self.title = b"Pool monitor"
         self.icon = b"icons:Usb-Pool.xpm"
-        self.model = TinyG2Model.PoolModel()
-        self.widgets = getPanels(self.model)
+        self.model = UsbPoolModel.PoolModel()
+        self.widgets = [UsbPoolPanel.UsbPoolPanel(self.model)]
 
     def shouldShow(self):
         s = FreeCADGui.Selection.getSelection()
         if len(s):
             o = s[0]
             if initResources.getObjectType(o) == "App::UsbPool"\
-               and o.ViewObject.Proxy.Type == "Gui::UsbTinyG2":
+               and o.ViewObject.Proxy.Type == "Gui::UsbPool":
                 self.model.setModel(o)
                 return True
         self.model.setModel(None)

@@ -78,14 +78,6 @@ class _ViewProviderPool:
             for o in obj.Serials:
                 if self.getObjectViewType(o.ViewObject) is None:
                     PySerialGui._ViewProviderPort(o.ViewObject)
-        if prop == "Open":
-            if obj.Open:
-                if obj.Proxy.openTerminalPort(obj):
-                    obj.Proxy.openTerminal(obj)
-                else:
-                    obj.Open = False
-            else:
-                obj.Proxy.closeTerminal(obj)
 
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree

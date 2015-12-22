@@ -26,7 +26,7 @@ from __future__ import unicode_literals
 
 from PySide import QtCore, QtGui
 import FreeCAD, FreeCADGui
-from Gui import PySerialModel, initResources
+from Gui import initResources
 import serial
 
 
@@ -35,9 +35,8 @@ class PySerialTaskPanel:
     def __init__(self, obj):
         form = []
         for o in obj.Serials:
-            model = PySerialModel.PySerialModel()
-            panel = PySerialPanel(model)
-            model.setModel(o)
+            panel = PySerialPanel()
+            panel.setModel(o.Proxy.Machine.model)
             form.append(panel)
         self.form = form
 
@@ -79,23 +78,25 @@ class PySerialTaskPanel:
 
 class PySerialPanel(QtGui.QWidget):
 
-    def __init__(self, model):
+    def __init__(self):
         QtGui.QWidget.__init__(self)
         self.setWindowIcon(QtGui.QIcon("icons:Usb-PySerial.xpm"))
         self.setWindowTitle("PySerial version {}".format(serial.VERSION))
-        layout = QtGui.QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        tableview = PySerialView(model)
-        layout.addWidget(tableview)
+        self.setLayout(QtGui.QHBoxLayout())
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.view = PySerialView()
+        self.layout().addWidget(self.view)
+
+    def setModel(self, model):
+        self.view.setModel(model)
 
 
 class PySerialView(QtGui.QTableView):
 
-    def __init__(self, model):
+    def __init__(self):
         QtGui.QTableView.__init__(self)
-        self.setModel(model)
         self.verticalHeader().setDefaultSectionSize(22)
-        self.horizontalHeader().setStretchLastSection(True)
+        self.horizontalHeader().setResizeMode(QtGui.QHeaderView.ResizeToContents)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
 
 
@@ -104,15 +105,15 @@ class TaskWatcher:
     def __init__(self):
         self.title = b"PySerial version {}".format(serial.VERSION)
         self.icon = b"icons:Usb-PySerial.xpm"
-        self.model = PySerialModel.PySerialModel()
-        self.widgets = [PySerialPanel(self.model)]
+        self.view = PySerialPanel()
+        self.widgets = [self.view]
 
     def shouldShow(self):
         s = FreeCADGui.Selection.getSelection()
         if len(s):
             o = s[0]
             if initResources.getObjectType(o) == "App::PySerial":
-                self.model.setModel(o)
+                self.view.setModel(o.Proxy.Machine.model)
                 return True
-        self.model.setModel(None)
+        self.view.setModel(None)
         return False

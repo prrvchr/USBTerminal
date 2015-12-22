@@ -24,9 +24,9 @@
 """ Pool document object """
 from __future__ import unicode_literals
 
-import FreeCAD, serial, os, imp 
+import FreeCAD, serial, os, importlib
 from PySide import QtCore
-from App import PySerial
+from App import PySerial, UsbPoolMachine, PluginMachine
 if FreeCAD.GuiUp:
     import FreeCADGui
     from PySide import QtGui
@@ -37,14 +37,15 @@ class Pool:
 
     def __init__(self, obj):
         self.Type = "App::UsbPool"
-        self.plugin = False
-        """ Usb Plugin driver property """
-        obj.addProperty("App::PropertyFile",
-                        "Plugin",
-                        "Plugin",
-                        "Application Plugin driver")
-        p = os.path.dirname(__file__) + "/../Plugins/DefaultPlugin.py"
-        obj.Plugin = os.path.abspath(p)
+        self.Machine = UsbPoolMachine.UsbPoolMachine()
+        """ Usb device driver property """
+        obj.addProperty("App::PropertyEnumeration",
+                        "Device",
+                        "Driver",
+                        "Usb Device Plugin driver")
+        obj.Device = self.getDevice()
+        obj.Device = 0
+        obj.setEditorMode("Device", 1)
         """ Link to PySerial document object """
         obj.addProperty("App::PropertyLinkList",
                         "Serials",
@@ -66,25 +67,19 @@ class Pool:
                         "Base",
                         "Pause/resume file upload", 2)
         obj.Pause = False
-        """ Usb Pool property """
+        """ Usb PySerial property """
         obj.addProperty("App::PropertyBool",
                         "DualPort",
-                        "Pool",
+                        "PySerial",
                         "Enable/disable dual endpoint USB connection (Plugin dependent)")
         obj.DualPort = False
         obj.setEditorMode("DualPort", 1)
         obj.addProperty("App::PropertyEnumeration",
                         "EndOfLine",
-                        "Pool",
+                        "PySerial",
                         "End of line char (\\r, \\n, or \\r\\n)")
         obj.EndOfLine = self.getEndOfLine()
         obj.EndOfLine = b"LF"
-        """ QThread object instance property """
-        obj.addProperty("App::PropertyPythonObject",
-                        "Process",
-                        "Base",
-                        "QThread process driver pointer", 2)
-        obj.Process = None
         obj.Proxy = self
 
     def __getstate__(self):
@@ -92,24 +87,24 @@ class Pool:
 
     def __setstate__(self, state):
         self.Type = "App::UsbPool"
-        self.plugin = False
+        self.Machine = UsbPoolMachine.UsbPoolMachine()
         return None
 
-    def getTerminalPort(self, obj):
-        return obj.Serials[0]
+    def isInitPort(self, obj, port):
+        return obj.Serials[0] == port
 
-    def openTerminalPort(self, obj):
-        s = self.getTerminalPort(obj)
-        return s.Proxy.openPySerial(s)
+    def getTerminal(self, obj):
+        objectName = "{}-{}".format(obj.Document.Name, obj.Name)
+        return FreeCADGui.getMainWindow().findChildren(QtGui.QDockWidget, objectName)
 
-    def openTerminal(self, obj):
-        d = TerminalDock.TerminalDock(obj)
+    def openTerminal(self, obj, thread):
+        if self.getTerminal(obj):
+            return
+        d = TerminalDock.TerminalDock(obj, thread)
         FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, d)
 
     def closeTerminal(self, obj):
-        objname = "{}-{}".format(obj.Document.Name, obj.Name)
-        docks = FreeCADGui.getMainWindow().findChildren(QtGui.QDockWidget, objname)
-        for d in docks:
+        for d in self.getTerminal(obj):
             d.setParent(None)
             d.close()
 
@@ -120,14 +115,20 @@ class Pool:
         s = self.getControlPort(obj)
         return s.Proxy.openPySerial(s)
 
+    def getDevice(self):
+        return [b"Generic Device", b"TinyG2 Device"]
+
+    def getIndexDevice(self, obj):
+        return self.getDevice().index(obj.Device)
+
     def getEndOfLine(self):
-        return [b"CR",b"LF",b"CRLF"]
+        return [b"CR", b"LF", b"CRLF"]
 
     def getIndexEndOfLine(self, obj):
         return self.getEndOfLine().index(obj.EndOfLine)
 
     def getCharEndOfLine(self, obj):
-        return ["\r","\n","\r\n"][self.getIndexEndOfLine(obj)]
+        return ["\r", "\n", "\r\n"][self.getIndexEndOfLine(obj)]
 
     def getClass(self, obj, source, attr):
         classInstance = None
@@ -145,36 +146,20 @@ class Pool:
             o = obj.Document.addObject("App::FeaturePython", "PySerial")
             PySerial.PySerial(o)
             obj.Serials += [o]
-        if self.plugin:
-            self.getClass(obj, obj.Plugin, "InitializePlugin")
-            self.plugin = False
-            # Need to clear selection for change take effect in property view
-            if FreeCAD.GuiUp and FreeCADGui.Selection.isSelected(obj):
-                FreeCADGui.Selection.clearSelection()
-                FreeCADGui.Selection.addSelection(obj)
 
     def onChanged(self, obj, prop):
-        if prop == "Plugin":
-            if obj.Plugin:
-                self.plugin = True
-        if prop == "Start":
-            if not obj.Open:
-                if obj.Start:
-                    obj.Start = False
-                return
-            if obj.Start:
-                obj.Process.start()
+        if prop == "Open":
+            if obj.Open:
+                obj.Proxy.Machine.start(obj)
             else:
-                obj.Process.stop()
-        if prop == "Pause":
-            if not obj.Open or not obj.Start:
-                if obj.Pause:
-                    obj.Pause = False
-                return
-            if obj.Pause:
-                obj.Process.pause()
-            else:
-                obj.Process.resume()
+                obj.Proxy.Machine.stop()
+        if prop == "Device1":
+            if obj.Proxy.Machine.isRunning():
+                device = obj.Proxy.getIndexDevice(obj)
+                if device == 0:
+                    obj.Proxy.PluginMachine = PluginMachine.GenericMachine(obj)
+                if device == 1:
+                    obj.Proxy.PluginMachine = PluginMachine.TinyG2Machine(obj)
 
 
 FreeCAD.Console.PrintLog("Loading UsbPool... done\n")

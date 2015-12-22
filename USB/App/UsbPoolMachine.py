@@ -21,55 +21,67 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Document Observer Object """
+""" UsbPool StateMachine document object """
 from __future__ import unicode_literals
 
-import FreeCAD, FreeCADGui
 from PySide import QtCore
-from Gui import initResources
+import FreeCAD, FreeCADGui, io, json, importlib
 
 
-class DocumentObserver(QtCore.QObject):
+class UsbPoolMachine(QtCore.QStateMachine):
 
-    changedUsbPool = QtCore.Signal(object)
-    line = QtCore.Signal(unicode)
-    gcode = QtCore.Signal(unicode)
-    data = QtCore.Signal(unicode)
-    datadic = QtCore.Signal(dict)
-    buffers = QtCore.Signal(unicode)
-    settings = QtCore.Signal(unicode)
+    initError = QtCore.Signal()
 
     def __init__(self):
-        QtCore.QObject.__init__(self)
+        QtCore.QStateMachine.__init__(self)
+        self.obj = None
+        self.serial = None
+        self.sio = None
+        On = QtCore.QState(self)
+        On.setObjectName("On")
+        Off = QtCore.QFinalState(self)
+        Off.setObjectName("Off")
+        Error = ErrorState(self)
+        Error.setObjectName("Error")
+        Open = OpenState(On)
+        Open.setObjectName("Open")
 
-    def slotCreatedDocument(self, doc):
-        pass
+        On.setInitialState(Open)
+        On.setErrorState(Error)
+        Open.addTransition(self, b"stopped()", Off)
+        Open.addTransition(self, b"initError()", Error)
+        Error.addTransition(Off)
+        self.setInitialState(On)
 
-    def slotActivateDocument(self, doc):
-        pass
+    def start(self, obj):
+        self.obj = obj
+        QtCore.QStateMachine.start(self)
 
-    def slotDeletedDocument(self, doc):
-        if FreeCAD.GuiUp:
-            for o in doc.Objects:
-                self.slotDeletedObject(o)
+    def stop(self):
+        self.obj.Proxy.PluginMachine.stop()
+        QtCore.QStateMachine.stop(self)
 
-    def slotCreatedObject(self, obj):
-        pass
+    @QtCore.Slot(object)
+    def onPlugin(self, obj):
+        machine = self.obj.Proxy.PluginMachine
+        machine.machine = obj
+        machine.start()
 
-    def slotDeletedObject(self, obj):
-        if FreeCAD.GuiUp:
-            if initResources.getObjectType(obj) == "App::UsbPool" and obj.Open:
-                obj.Open = False
-                QtCore.QThreadPool.globalInstance().waitForDone()
 
-    def slotChangedObject(self, obj, prop):
-        typ = initResources.getObjectType(obj)
-        if typ == "App::UsbPool":
-            if prop in ("Open", "Start", "Pause"):
-                self.changedUsbPool.emit(obj)
+class OpenState(QtCore.QState):
 
-    def slotUndoDocument(self, doc):
-        pass
+    def onEntry(self, e):
+        obj = self.machine().obj
+        for o in obj.Serials:
+            if obj.Proxy.isInitPort(obj, o):
+                machine = o.Proxy.Machine
+                machine.pluginReady.connect(self.machine().onPlugin)
+                machine.initError.connect(self.machine().initError)
+                #self.machine().stopped.connect(machine.stopped)
+                machine.start(o, True)
 
-    def slotRedoDocument(self, doc):
-        pass
+class ErrorState(QtCore.QState):
+
+    def onEntry(self, e):
+        obj = self.machine().obj
+        obj.Open  = False

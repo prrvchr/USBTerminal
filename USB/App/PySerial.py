@@ -27,14 +27,14 @@ from __future__ import unicode_literals
 import serial
 from serial.tools import list_ports
 from FreeCAD import Console
+from App import PySerialMachine
 
 
 class PySerial:
 
     def __init__(self, obj):
         self.Type = "App::PySerial"
-        """ PySerial port object instance property """
-        self.PySerial = serial.serial_for_url(None, do_not_open=True)
+        self.Machine = PySerialMachine.PySerialMachine()
         """ Internal property for management of data update """
         self.Update = []
         """ PySerial Base driving property """
@@ -43,7 +43,7 @@ class PySerial:
                         "Base",
                         "Open/close PySerial port", 2)
         obj.Open = False
-        obj.setEditorMode("Open", 1)
+        #obj.setEditorMode("Open", 1) made in onChanged() Proxy property
         """ PySerial port property """
         obj.addProperty("App::PropertyEnumeration",
                         "Baudrate",
@@ -122,7 +122,7 @@ class PySerial:
 
     def __setstate__(self, state):
         self.Type = "App::PySerial"
-        self.PySerial = serial.serial_for_url(None, do_not_open=True)
+        self.Machine = PySerialMachine.PySerialMachine()
         self.Update = []
         return None
 
@@ -168,6 +168,8 @@ class PySerial:
             obj.Proxy.Update = []
 
     def onChanged(self, obj, prop):
+        if prop == "Proxy":
+            obj.setEditorMode("Open", 1)
         if prop == "Details":
             obj.Proxy.Update = ["Port"]
             self.refreshPorts(obj)
@@ -179,50 +181,48 @@ class PySerial:
                 else:
                     obj.Port = b"hwgrep://" + obj.Ports
         if prop == "Baudrate":
-            self.PySerial.baudrate = self.getBaudrate(obj)
+            self.Machine.serial.baudrate = self.getBaudrate(obj)
         if prop == "ByteSize":
-            self.PySerial.bytesize = self.getByteSize(obj)
+            self.Machine.serial.bytesize = self.getByteSize(obj)
         if prop == "DsrDtr":
-            self.PySerial.dsrdtr = self.getDsrDtr(obj)
+            self.Machine.serial.dsrdtr = self.getDsrDtr(obj)
         if prop == "InterByteTimeout":
-            self.PySerial.inter_byte_timeout = self.getInterByteTimeout(obj)
+            self.Machine.serial.inter_byte_timeout = self.getInterByteTimeout(obj)
         if prop == "Parity":
-            self.PySerial.parity = self.getParity(obj)
+            self.Machine.serial.parity = self.getParity(obj)
         if prop == "Port":
-            self.PySerial.port = self.getPort(obj)
+            self.Machine.serial.port = self.getPort(obj)
         if prop == "RtsCts":
-            self.PySerial.rtscts = self.getRtsCts(obj)
+            self.Machine.serial.rtscts = self.getRtsCts(obj)
         if prop == "StopBits":
-            self.PySerial.stopbits = self.getStopBits(obj)
+            self.Machine.serial.stopbits = self.getStopBits(obj)
         if prop == "Timeout":
-            self.PySerial.timeout = self.getTimeout(obj)
+            self.Machine.serial.timeout = self.getTimeout(obj)
         if prop == "WriteTimeout":
-            self.PySerial.write_timeout = self.getWriteTimeout(obj)
+            self.Machine.serial.write_timeout = self.getWriteTimeout(obj)
         if prop == "XonXoff":
-            self.PySerial.xonxoff = self.getXonXoff(obj)
+            self.Machine.serial.xonxoff = self.getXonXoff(obj)
+            
+    def isInitPort(self, obj):
+        return obj.InList and obj.InList[0].Serials[0] == obj
+
+    def getPySerialPool(self, obj):
+        pool = None
+        if obj.InList:
+            pool = obj.InList[0]
+        return pool
+
+    def getCharEndOfLine(sef, obj):
+        eol = ""
+        if obj.InList:
+            o = obj.InList[0]
+            eol = o.Proxy.getCharEndOfLine(o)
+        return eol
 
     def closeTerminal(self, obj):
         if obj.InList and obj.InList[0].Serials[0] == obj:
             o = obj.InList[0]
             o.Proxy.closeTerminal(o)
-
-    def openPySerial(self, obj):
-        if not self.PySerial.is_open:
-            #self.PySerial.port = self.getPort(obj)
-            #self.PySerial.apply_settings(self.getSettings(obj))            
-            p = self.getPort(obj)
-            s = self.getSettings(obj)
-            try:
-                #self.PySerial.open()
-                self.PySerial = serial.serial_for_url(p, **s)
-            except (serial.SerialException, ValueError) as e:
-                msg = b"Error occurred opening port {}: {}\n"
-                Console.PrintError(msg.format(p, e))
-            else:
-                msg = "{} opening port {}... done\n"
-                Console.PrintLog(msg.format(obj.Label, self.PySerial.name))
-                obj.Open = True
-        return obj.Open
 
     def getSettings(self, obj):
         return {b"baudrate" : self.getBaudrate(obj),

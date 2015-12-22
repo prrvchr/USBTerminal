@@ -29,7 +29,7 @@ from PySide.QtGui import QTextCursor, QWidget, QVBoxLayout
 from PySide.QtCore import Qt, Signal, Slot, QThreadPool, QRunnable, QObject
 from FreeCAD import Console
 import FreeCADGui
-import io
+import io, json
 
 
 class TextEditWidget(QPlainTextEdit):
@@ -112,12 +112,11 @@ class TextEditWidget(QPlainTextEdit):
 
 class TerminalDock(QDockWidget):
 
-    def __init__(self, pool):
+    def __init__(self, pool, thread):
         QDockWidget.__init__(self)
-        self.port = pool.Proxy.getTerminalPort(pool)
+        self.pool = pool
         self.setWindowTitle("{} terminal".format(pool.Label))
         self.setObjectName("{}-{}".format(pool.Document.Name, pool.Name))
-        thread = TerminalThread(pool, self.port)
         thread.output.connect(self.on_output)
         if pool.ViewObject.DualView:
             terminal = QSplitter(Qt.Vertical)
@@ -135,7 +134,6 @@ class TerminalDock(QDockWidget):
             self.output.command.connect(thread.on_command)
             terminal.layout().addWidget(self.output)
             self.setWidget(terminal)
-        QThreadPool.globalInstance().start(thread)
 
     @Slot(unicode)
     def on_output(self, data):
@@ -143,51 +141,5 @@ class TerminalDock(QDockWidget):
         self.output.ensureCursorVisible()
 
     def closeEvent(self, event):
-        self.port.Open = False
-        QThreadPool.globalInstance().waitForDone()
-        # Signalling PySerialModel of close event
-        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-        obs.changedPySerial.emit(self.port)
-
-
-class TerminalThread(QObject, QRunnable):
-
-    output = Signal(unicode)
-    
-    def __init__(self, pool, port):
-        QObject.__init__(self)
-        QRunnable.__init__(self)
-        self.pool = pool
-        self.port = port
-        self.serial = port.Proxy.PySerial
-        self.eol = pool.Proxy.getCharEndOfLine(pool)
-        s = io.BufferedRWPair(self.serial, self.serial)
-        self.sio = io.TextIOWrapper(s, newline=self.eol)
-
-    def on_command(self, command):
-        try:
-            self.sio.write(command + self.eol)
-            self.sio.flush()
-        except Exception as e:
-            msg = "Error occurred in TerminalWriter process: {}\n"
-            Console.PrintError(msg.format(e))
-
-    def run(self):
-        """ Loop and copy PySerial -> Terminal """
-        try:
-            msg = "{} UsbReader thread start on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, self.serial.name))
-            while self.port.Open:
-                line = self.sio.readline()
-                if len(line):
-                    self.output.emit(line)
-        except Exception as e:
-            msg = "Error occurred in UsbReader thread process: {}\n"
-            Console.PrintError(msg.format(e))
-        else:
-            msg = "{} UsbReader thread stop on port {}... done\n"
-            Console.PrintLog(msg.format(self.pool.Name, self.serial.name))
-        finally:
-            self.serial.close()
-            msg = "{} closing port {}... done\n"
-            Console.PrintLog(msg.format(self.port.Label, self.serial.name))
+        if self.pool.Open:
+            self.pool.Open = False

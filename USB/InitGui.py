@@ -55,6 +55,7 @@ class UsbWorkbench(Workbench):
     ToolTip = "Python USB workbench"
 
     def Initialize(self):
+        from PySide import QtCore
         from Gui import initResources, PySerialPanel, UsbPoolPanel
         from App import DocumentObserver, UsbPool, UsbCommand
         initResources.initIcons()
@@ -63,6 +64,8 @@ class UsbWorkbench(Workbench):
         self.appendToolbar("Commands for Usb", commands)
         self.appendMenu([b"USB"], commands)
         self.observer = DocumentObserver.DocumentObserver()
+        self.eventType = QtCore.QEvent.registerEventType()
+        self.taskwatcher = [PySerialPanel.TaskWatcher()]
         App.addDocumentObserver(self.observer)
         Log('Loading USB workbench... done\n')
 
@@ -70,14 +73,23 @@ class UsbWorkbench(Workbench):
         return "Gui::PythonWorkbench"
 
     def Activated(self):
-        from Gui import initResources, PySerialPanel
-        taskwatcher = [PySerialPanel.TaskWatcher()]
-        initResources.initTaskWatcher(taskwatcher)
-        Gui.Control.addTaskWatcher(taskwatcher)
+        Gui.Control.addTaskWatcher(self.taskwatcher)
         Log("USB workbench activated\n")
 
     def Deactivated(self):
         Gui.Control.clearTaskWatcher()
         Log("USB workbench deactivated\n")
-
+        
+    def addTaskWatcher(self, taskwatcher):
+        if taskwatcher in self.taskwatcher:
+            return
+        self.taskwatcher.append(taskwatcher)
+        Gui.Control.addTaskWatcher(self.taskwatcher)
+        
+    def removeTaskWatcher(self, taskwatcher):
+        if taskwatcher not in self.taskwatcher:
+            return
+        self.taskwatcher.remove(taskwatcher)
+        Gui.Control.addTaskWatcher(self.taskwatcher)
+            
 Gui.addWorkbench(UsbWorkbench())

@@ -109,34 +109,12 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
-        if prop == "Serials":
-            UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
-        if prop == "Open":
-            objname = "{}-{}".format(obj.Document.Name, obj.Name)
-            if obj.Open:
-                obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-                if obj.ViewObject.DualView:
-                    d = TerminalDock.DualTerminalDock()
-                else:
-                    d = TerminalDock.TerminalDock()
-                obj.Process.reader.read.connect(d.on_write)
-                obj.Process.reader.data.connect(obs.data)
-                obj.Process.reader.datadic.connect(obs.datadic)
-                d.read.connect(obj.Process.on_write)
-                d.setObjectName(objname)
-                d.setWindowTitle("{} terminal".format(obj.Label))
-                FreeCADGui.getMainWindow().addDockWidget(Qt.RightDockWidgetArea, d)
-                obj.Process.on_write("?")
-            else:
-                docks = FreeCADGui.getMainWindow().findChildren(QDockWidget, objname)
-                for d in docks:
-                    d.setParent(None)
-                    d.close()
+        UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
         if prop == "Start":
             if obj.Start:
                 obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-                obj.Process.uploader.line.connect(obs.line)
-                obj.Process.uploader.gcode.connect(obs.gcode)
+                #obj.Process.uploader.line.connect(obs.line)
+                #obj.Process.uploader.gcode.connect(obs.gcode)
 
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree
