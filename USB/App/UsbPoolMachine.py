@@ -24,64 +24,73 @@
 """ UsbPool StateMachine document object """
 from __future__ import unicode_literals
 
-from PySide import QtCore
+from PySide import QtCore, QtGui
 import FreeCAD, FreeCADGui, io, json, importlib
 
 
 class UsbPoolMachine(QtCore.QStateMachine):
 
-    initError = QtCore.Signal()
-
     def __init__(self):
         QtCore.QStateMachine.__init__(self)
         self.obj = None
-        self.serial = None
-        self.sio = None
-        On = QtCore.QState(self)
+        self.init = False
+        self.run = False
+        
+        On = OnState(self)
+        On.setChildMode(QtCore.QState.ParallelStates)
         On.setObjectName("On")
-        Off = QtCore.QFinalState(self)
+        Off = OffState(self)
         Off.setObjectName("Off")
         Error = ErrorState(self)
         Error.setObjectName("Error")
-        Open = OpenState(On)
-        Open.setObjectName("Open")
 
-        On.setInitialState(Open)
         On.setErrorState(Error)
-        Open.addTransition(self, b"stopped()", Off)
-        Open.addTransition(self, b"initError()", Error)
-        Error.addTransition(Off)
+        On.addTransition(On, b"finished()", Off)
         self.setInitialState(On)
-
-    def start(self, obj):
-        self.obj = obj
+        
+    def start(self):
+        if not self.init:
+            self.initStates()
         QtCore.QStateMachine.start(self)
+            
+    def initStates(self):
+        self.initState(self.obj.Serials[0])
+        if self.obj.DualPort:
+            self.initState(self.obj.Serials[1])
+            QtCore.QThreadPool.globalInstance().setMaxThreadCount(2)
+        elif len(self.obj.Serials) > 1:
+            self.resetState(self.obj.Serials[1])
+        self.init = True
+        
+    def initState(self, obj):
+        state = obj.Proxy.States
+        state.init = obj.Proxy.isInit(obj)
+        state.setParent(self.initialState())
+
+    def resetState(self, obj):
+        obj.Proxy.States.setParent(None)
 
     def stop(self):
-        self.obj.Proxy.PluginMachine.stop()
-        QtCore.QStateMachine.stop(self)
+        self.run = False
 
-    @QtCore.Slot(object)
-    def onPlugin(self, obj):
-        machine = self.obj.Proxy.PluginMachine
-        machine.machine = obj
-        machine.start()
+    def getCharEndOfLine(self):
+        return self.obj.Proxy.getCharEndOfLine(self.obj)
 
 
-class OpenState(QtCore.QState):
+class OnState(QtCore.QState):
 
     def onEntry(self, e):
-        obj = self.machine().obj
-        for o in obj.Serials:
-            if obj.Proxy.isInitPort(obj, o):
-                machine = o.Proxy.Machine
-                machine.pluginReady.connect(self.machine().onPlugin)
-                machine.initError.connect(self.machine().initError)
-                #self.machine().stopped.connect(machine.stopped)
-                machine.start(o, True)
+        self.machine().obj.State = b"{}".format(self.objectName())
 
-class ErrorState(QtCore.QState):
+
+class OffState(QtCore.QFinalState):
 
     def onEntry(self, e):
-        obj = self.machine().obj
-        obj.Open  = False
+        self.machine().obj.State = b"{}".format(self.objectName())
+
+
+class ErrorState(QtCore.QFinalState):
+
+    def onEntry(self, e):
+        self.machine().obj.State = b"{}".format(self.objectName())
+ 

@@ -36,7 +36,7 @@ class PySerialTaskPanel:
         form = []
         for o in obj.Serials:
             panel = PySerialPanel()
-            panel.setModel(o.Proxy.Machine.model)
+            panel.setModel(o.Proxy.States.model)
             form.append(panel)
         self.form = form
 
@@ -113,7 +113,7 @@ class TaskWatcher:
         if len(s):
             o = s[0]
             if initResources.getObjectType(o) == "App::PySerial":
-                self.view.setModel(o.Proxy.Machine.model)
+                self.view.setModel(o.Proxy.States.model)
                 return True
         self.view.setModel(None)
         return False

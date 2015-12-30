@@ -21,11 +21,10 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Usb Plugins document """
+""" Usb Pool Plugins document """
 from __future__ import unicode_literals
 
 import FreeCAD, os
-from App import PluginMachine
 if FreeCAD.GuiUp:
     from Gui import UsbPoolGui, TinyG2Gui
 
@@ -90,12 +89,6 @@ def initTinyG2Plugin(obj, extra):
     if FreeCAD.GuiUp:
         TinyG2Gui._ViewProviderPool(obj.ViewObject)
 
-
-def initMachine(obj, device):
-    if device == 0:
-        obj.Proxy.PluginMachine = PluginMachine.GenericMachine(obj)
-    elif device == 1:
-        obj.Proxy.PluginMachine = PluginMachine.GenericMachine(obj)
 
 
 def resetPlugin(obj):

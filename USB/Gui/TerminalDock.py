@@ -43,13 +43,10 @@ class TextEditWidget(QPlainTextEdit):
         self.history = []
 
     def getCommand(self):
-        doc = self.document()
-        line = doc.findBlockByLineNumber(doc.lineCount() - 1).text()
-        return line
+        line = self.document().lineCount() - 2
+        return self.document().findBlockByLineNumber(line).text()
 
     def setCommand(self, command):
-        if self.getCommand() == command:
-            return
         self.moveCursor(QTextCursor.End)
         self.moveCursor(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
         self.textCursor().removeSelectedText()
@@ -80,31 +77,30 @@ class TextEditWidget(QPlainTextEdit):
                 return self.history[self.history_index]
         return ""
 
-    def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Enter, Qt.Key_Return):
-            if self.textCursor().atEnd():
-                self.runCommand()
-            else:
-                self.moveCursor(QTextCursor.End)
-                return
-        elif event.key() == Qt.Key_Home:
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Home:
             self.moveCursor(QTextCursor.StartOfLine)
             return
-        elif event.key() == Qt.Key_PageUp:
+        elif e.key() == Qt.Key_PageUp:
             return
-        elif event.key() in (Qt.Key_Left, Qt.Key_Backspace):
-            if self.textCursor().columnNumber() == 0:
-                return
-        elif event.key() == Qt.Key_Up:
+        elif e.key() in (Qt.Key_Left, Qt.Key_Backspace) and \
+             self.textCursor().columnNumber() == 0:
+            return
+        elif e.key() == Qt.Key_Up:
             self.setCommand(self.getPrevHistoryEntry())
             return
-        elif event.key() == Qt.Key_Down:
+        elif e.key() == Qt.Key_Down:
             self.setCommand(self.getNextHistoryEntry())
             return
-        QPlainTextEdit.keyPressEvent(self, event)
-
-    def mouseReleaseEvent(self, event):
-        QPlainTextEdit.mouseReleaseEvent(self, event)
+        elif e.key() in (Qt.Key_Enter, Qt.Key_Return) and \
+             not self.textCursor().atEnd():
+            self.moveCursor(QTextCursor.End)        
+        QPlainTextEdit.keyPressEvent(self, e)
+        if e.key() in (Qt.Key_Enter, Qt.Key_Return):
+            self.runCommand()
+ 
+    def mouseReleaseEvent(self, e):
+        QPlainTextEdit.mouseReleaseEvent(self, e)
         if self.textCursor().atEnd() or self.textCursor().hasSelection():
             return
         self.moveCursor(QTextCursor.End)
@@ -112,34 +108,34 @@ class TextEditWidget(QPlainTextEdit):
 
 class TerminalDock(QDockWidget):
 
-    def __init__(self, pool, thread):
+    def __init__(self, state):
         QDockWidget.__init__(self)
-        self.pool = pool
-        self.setWindowTitle("{} terminal".format(pool.Label))
-        self.setObjectName("{}-{}".format(pool.Document.Name, pool.Name))
-        thread.output.connect(self.on_output)
-        if pool.ViewObject.DualView:
+        self.state = state
+        obj = state.machine().obj
+        self.setWindowTitle("{} terminal".format(obj.Label))
+        self.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
+        state.read.connect(self.on_output)
+        if obj.ViewObject.DualView:
             terminal = QSplitter(Qt.Vertical)
             self.output = QPlainTextEdit()
             terminal.addWidget(self.output)
             textedit = TextEditWidget()
-            textedit.command.connect(thread.on_command)
+            textedit.command.connect(state.write)
             terminal.addWidget(textedit)
-            self.setWidget(terminal)
         else:
             terminal = QWidget(self)
             terminal.setLayout(QVBoxLayout())
             terminal.layout().setContentsMargins(0, 0, 0, 0)
             self.output = TextEditWidget()
-            self.output.command.connect(thread.on_command)
+            self.output.command.connect(state.write)
             terminal.layout().addWidget(self.output)
-            self.setWidget(terminal)
+        self.setWidget(terminal)
 
     @Slot(unicode)
     def on_output(self, data):
         self.output.insertPlainText(data)
         self.output.ensureCursorVisible()
 
-    def closeEvent(self, event):
-        if self.pool.Open:
-            self.pool.Open = False
+    def closeEvent(self, e):
+        if self.state.machine().isRunning():
+            self.state.machine().stop()

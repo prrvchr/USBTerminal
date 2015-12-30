@@ -21,16 +21,11 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" Pool document object """
+""" Usb Pool document object """
 from __future__ import unicode_literals
 
-import FreeCAD, serial, os, importlib
-from PySide import QtCore
-from App import PySerial, UsbPoolMachine, PluginMachine
-if FreeCAD.GuiUp:
-    import FreeCADGui
-    from PySide import QtGui
-    from Gui import TerminalDock
+import FreeCAD, os
+from App import PySerial, UsbPoolMachine
 
 
 class Pool:
@@ -52,21 +47,13 @@ class Pool:
                         "Base",
                         "Link to PySerial document object")
         """ Usb Base driving property """
-        obj.addProperty("App::PropertyBool",
-                        "Open",
+        obj.addProperty("App::PropertyEnumeration",
+                        "State",
                         "Base",
-                        "Open/close terminal connection", 2)
-        obj.Open = False
-        obj.addProperty("App::PropertyBool",
-                        "Start",
-                        "Base",
-                        "Start/stop file upload", 2)
-        obj.Start = False
-        obj.addProperty("App::PropertyBool",
-                        "Pause",
-                        "Base",
-                        "Pause/resume file upload", 2)
-        obj.Pause = False
+                        "State of USB Device Machine [On, Off, Error]", 2)
+        obj.State = self.getState()
+        obj.State = b"Off"
+        obj.setEditorMode("State", 1)
         """ Usb PySerial property """
         obj.addProperty("App::PropertyBool",
                         "DualPort",
@@ -89,31 +76,9 @@ class Pool:
         self.Type = "App::UsbPool"
         self.Machine = UsbPoolMachine.UsbPoolMachine()
         return None
-
-    def isInitPort(self, obj, port):
-        return obj.Serials[0] == port
-
-    def getTerminal(self, obj):
-        objectName = "{}-{}".format(obj.Document.Name, obj.Name)
-        return FreeCADGui.getMainWindow().findChildren(QtGui.QDockWidget, objectName)
-
-    def openTerminal(self, obj, thread):
-        if self.getTerminal(obj):
-            return
-        d = TerminalDock.TerminalDock(obj, thread)
-        FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, d)
-
-    def closeTerminal(self, obj):
-        for d in self.getTerminal(obj):
-            d.setParent(None)
-            d.close()
-
-    def getControlPort(self, obj):
-        return obj.Serials[-1]
-
-    def openControlPort(self, obj):
-        s = self.getControlPort(obj)
-        return s.Proxy.openPySerial(s)
+    
+    def getState(self):
+        return [b"On", b"Off", b"Error"]
 
     def getDevice(self):
         return [b"Generic Device", b"TinyG2 Device"]
@@ -148,18 +113,10 @@ class Pool:
             obj.Serials += [o]
 
     def onChanged(self, obj, prop):
-        if prop == "Open":
-            if obj.Open:
-                obj.Proxy.Machine.start(obj)
-            else:
-                obj.Proxy.Machine.stop()
-        if prop == "Device1":
-            if obj.Proxy.Machine.isRunning():
-                device = obj.Proxy.getIndexDevice(obj)
-                if device == 0:
-                    obj.Proxy.PluginMachine = PluginMachine.GenericMachine(obj)
-                if device == 1:
-                    obj.Proxy.PluginMachine = PluginMachine.TinyG2Machine(obj)
+        if prop == "DualPort":
+            self.Machine.init = False
+        if prop == "Proxy":
+            self.Machine.obj = obj
 
 
 FreeCAD.Console.PrintLog("Loading UsbPool... done\n")

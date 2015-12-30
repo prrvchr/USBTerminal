@@ -116,7 +116,10 @@ class CommandOpen:
         if initResources.getObjectType(obj) == "App::PySerial":
             obj = obj.InList[0]
             code += '''obj = obj.InList[0]\n'''
-        code += '''obj.Open = not obj.Open'''
+        if obj.Proxy.Machine.isRunning():
+            code += '''obj.Proxy.Machine.stop()'''
+        else:
+            code += '''obj.Proxy.Machine.start()'''            
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 

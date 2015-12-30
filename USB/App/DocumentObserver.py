@@ -58,8 +58,9 @@ class DocumentObserver(QtCore.QObject):
 
     def slotDeletedObject(self, obj):
         if FreeCAD.GuiUp:
-            if initResources.getObjectType(obj) == "App::UsbPool" and obj.Open:
-                obj.Open = False
+            if initResources.getObjectType(obj) == "App::UsbPool" and \
+               obj.Proxy.Machine.isRunning():
+                obj.Proxy.Machine.stop()
                 QtCore.QThreadPool.globalInstance().waitForDone()
 
     def slotChangedObject(self, obj, prop):
