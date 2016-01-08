@@ -21,25 +21,39 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-""" UsbPool Model Plugin object """
+""" UsbPool Generic Model Plugin object """
 from __future__ import unicode_literals
 
-from PySide import QtCore, QtGui
+from PySide import QtCore
 
 
-class PoolModel(QtCore.QAbstractTableModel):
-
-    title = QtCore.Signal(unicode)
+class PoolBaseModel(QtCore.QAbstractItemModel):
 
     def __init__(self):
-        QtCore.QAbstractTableModel.__init__(self)
+        QtCore.QAbstractItemModel.__init__(self)
         self.obj = None
 
     def setModel(self, obj):
         self.obj = obj
-        if obj is not None:
-            self.title.emit(self.obj.Label)
 
-    @QtCore.Slot(object)
-    def on_state(self, obj):
-        pass
+    def index(self, row, column, parent=QtCore.QModelIndex()):
+        return QtCore.QModelIndex()
+
+    def parent(self, index=QtCore.QModelIndex()):
+        return QtCore.QModelIndex()
+
+    def rowCount(self, parent=QtCore.QModelIndex()):
+        return 0
+
+    def columnCount(self, parent=QtCore.QModelIndex()):
+        return 0
+
+    def data(self, index=QtCore.QModelIndex(), role=QtCore.Qt.DisplayRole):
+        return None
+
+
+class PoolModel(PoolBaseModel):
+
+    def __init__(self, obj):
+        PoolBaseModel.__init__(self)
+        self.obj = obj

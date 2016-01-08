@@ -26,186 +26,127 @@ from __future__ import unicode_literals
 
 from PySide import QtCore, QtGui
 import FreeCADGui
-from Gui import TinyG2Model
+from App import Script as AppScript
+from Gui import UsbPoolPanel, TinyG2Model, Script as GuiScript
 
 
-class UsbPoolTaskPanel:
+class PoolTaskPanel(UsbPoolPanel.PoolTaskPanel):
 
     def __init__(self, obj):
-        model = TinyG2Model.PoolModel()
-        panel = UsbPoolPanel(model)
-        model.setModel(obj)
-        self.form = [panel]
-
-    def accept(self):
-        FreeCADGui.ActiveDocument.resetEdit()
-        return True
-
-    def reject(self):
-        FreeCADGui.ActiveDocument.resetEdit()
-        return True
-
-    def clicked(self, index):
-        pass
-
-    def open(self):
-        pass
-
-    def needsFullSpace(self):
-        return True
-
-    def isAllowedAlterSelection(self):
-        return True
-
-    def isAllowedAlterView(self):
-        return True
-
-    def isAllowedAlterDocument(self):
-        return False
-
-    def getStandardButtons(self):
-        return int(QtGui.QDialogButtonBox.Ok)
-        #return int(QtGui.QDialogButtonBox.Ok|QtGui.QDialogButtonBox.Cancel)
-
-    def helpRequested(self):
-        pass
+        view = PoolPanel()
+        model = obj.ViewObject.Proxy.Model
+        if model.obj is None: model.obj = obj
+        view.setModel(model)
+        self.form = [view]
 
 
 class SettingTabBar(QtGui.QTabBar):
 
-    tabindex = QtCore.Signal(unicode)
+    tabIndex = QtCore.Signal(unicode)
 
-    def __init__(self):
-        QtGui.QTabBar.__init__(self)
+    def __init__(self, parent):
+        QtGui.QTabBar.__init__(self, parent)
         self.setShape(QtGui.QTabBar.RoundedWest)
         self.setDocumentMode(True)
         self.setTabData(self.addTab("All"), "r")
-        self.setTabData(self.addTab("System"), "sys")
+        self.setTabData(self.addTab("Axis"), "q")
+        self.setTabData(self.addTab("Home"), "o")
+        self.setTabData(self.addTab("Motor"), "m")
         self.setTabData(self.addTab("Power"), "p1")
-        self.setTabData(self.addTab("Axis X"), "x")
-        self.setTabData(self.addTab("Y"), "y")
-        self.setTabData(self.addTab("Z"), "z")
-        self.setTabData(self.addTab("A"), "a")
-        self.setTabData(self.addTab("B"), "b")
-        self.setTabData(self.addTab("C"), "c")
-        self.setTabData(self.addTab("Motor 1"), "1")
-        self.setTabData(self.addTab("2"), "2")
-        self.setTabData(self.addTab("3"), "3")
-        self.setTabData(self.addTab("4"), "4")
-        self.setTabData(self.addTab("5"), "5")
-        self.setTabData(self.addTab("6"), "6")
-        self.currentChanged.connect(self.on_tabIndex)
+        self.setTabData(self.addTab("System"), "sys")
+        self.currentChanged.connect(self.onTabIndex)
 
     @QtCore.Slot(int)
-    def on_tabIndex(self, index):
-        self.tabindex.emit(self.tabData(index))
-
-    @QtCore.Slot(int)
-    def on_state(self, state):
-        self.setEnabled(state == 1 or state == 7)
+    def onTabIndex(self, index):
+        self.tabIndex.emit(self.tabData(index))
 
 
-class UsbPoolPanel(QtGui.QTabWidget):
+class PoolPanel(QtGui.QTabWidget):
 
-    def __init__(self, model):
+    def __init__(self):
         QtGui.QTabWidget.__init__(self)
         self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
-        obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
         setting = QtGui.QWidget()
         setting.setLayout(QtGui.QHBoxLayout())
-        tabbar = SettingTabBar()
-        setting.layout().addWidget(tabbar)
-        tabbar.tabindex.connect(model.on_tabIndex)
-        model.state.connect(tabbar.on_state)
-        tableview = UsbPoolView(model)
-        setting.layout().addWidget(tableview)
+        self.tabbar = SettingTabBar(self)
+        setting.layout().addWidget(self.tabbar)
+        #model.state.connect(tabbar.on_state)
+        self.tableview = UsbPoolView(self)
+        setting.layout().addWidget(self.tableview)
         self.addTab(setting, "Current settings")
         monitor = QtGui.QWidget()
         monitor.setLayout(QtGui.QGridLayout())
         monitor.layout().addWidget(QtGui.QLabel("Line/N:"), 0, 0, 1, 1)
         line = QtGui.QLabel()
         monitor.layout().addWidget(line, 0, 1, 1, 1)
-        obs.line.connect(line.setText)
         monitor.layout().addWidget(QtGui.QLabel("/"), 0, 2, 1, 1)
         nline = QtGui.QLabel()
         monitor.layout().addWidget(nline, 0, 3, 1, 1)
-        model.nline.connect(nline.setText)
+        #model.nline.connect(nline.setText)
         monitor.layout().addWidget(QtGui.QLabel("GCode:"), 1, 0, 1, 1)
         gcode = QtGui.QLabel()
         monitor.layout().addWidget(gcode, 1, 1, 1, 3)
-        obs.gcode.connect(gcode.setText)
         monitor.layout().addWidget(QtGui.QLabel("Buffers:"), 2, 0, 1, 1)
         buffers = QtGui.QLabel()
         monitor.layout().addWidget(buffers, 2, 1, 1, 3)
-        model.buffers.connect(buffers.setText)
+        #model.buffers.connect(buffers.setText)
         monitor.layout().addWidget(QtGui.QLabel("PosX:"), 3, 0, 1, 1)
         posx = QtGui.QLabel()
         monitor.layout().addWidget(posx, 3, 1, 1, 3)
-        model.posx.connect(posx.setText)
+        #model.posx.connect(posx.setText)
         monitor.layout().addWidget(QtGui.QLabel("PosY:"), 4, 0, 1, 1)
         posy = QtGui.QLabel()
         monitor.layout().addWidget(posy, 4, 1, 1, 3)
-        model.posy.connect(posy.setText)
+        #model.posy.connect(posy.setText)
         monitor.layout().addWidget(QtGui.QLabel("PosZ:"), 5, 0, 1, 1)
         posz = QtGui.QLabel()
         monitor.layout().addWidget(posz, 5, 1, 1, 3)
-        model.posz.connect(posz.setText)
+        #model.posz.connect(posz.setText)
         monitor.layout().addWidget(QtGui.QLabel("Vel:"), 6, 0, 1, 1)
         vel = QtGui.QLabel()
         monitor.layout().addWidget(vel, 6, 1, 1, 3)
-        model.vel.connect(vel.setText)
+        #model.vel.connect(vel.setText)
         monitor.layout().addWidget(QtGui.QLabel("Feed:"), 7, 0, 1, 1)
         feed = QtGui.QLabel()
         monitor.layout().addWidget(feed, 7, 1, 1, 3)
-        model.feed.connect(feed.setText)
+        #model.feed.connect(feed.setText)
         monitor.layout().addWidget(QtGui.QLabel("Status:"), 8, 0, 1, 1)
         stat = QtGui.QLabel()
         monitor.layout().addWidget(stat, 8, 1, 1, 3)
-        model.stat.connect(stat.setText)
+        #model.stat.connect(stat.setText)
         self.addTab(monitor, "Upload monitor")
-        model.title.connect(self.on_title)
-        model.state.connect(self.on_state)
+
+    def setModel(self, model):
+        self.tabbar.tabIndex.connect(model.setRootIndex)
+        model.title.connect(self.onTitle)
+        model.title.emit("test")
+        self.tableview.setModel(model)
 
     @QtCore.Slot(unicode)
-    def on_title(self, title):
+    def onTitle(self, title):
         self.setWindowTitle(title)
-
-    @QtCore.Slot(int)
-    def on_state(self, state):
-        self.setTabEnabled(0, state == 1 or state == 7)
-        self.setTabEnabled(1, state == 3 or state == 7)
-        if state == 1:
-            self.setCurrentIndex(0)
-        elif state == 3:
-            self.setCurrentIndex(1)
 
 
 class UsbPoolView(QtGui.QTreeView):
     
     unit = QtCore.Signal(QtCore.QPoint, int)
 
-    def __init__(self, model):
-        QtGui.QTreeView.__init__(self)
+    def __init__(self, parent):
+        QtGui.QTreeView.__init__(self, parent)
+        model = TinyG2Model.PoolBaseModel()
         i = model._header.index("Value")
-        self.setItemDelegateForColumn(i, PoolDelegate(self))
-        self.setModel(model)
+        self.setItemDelegateForColumn(i, PoolDelegate(self))        
         self.header().setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.header().customContextMenuRequested.connect(self.on_unit)
-        self.unit.connect(model.on_unit)
+        self.header().customContextMenuRequested.connect(self.onUnit)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
-        model.rootindex.connect(self.on_rootindex)
-        model.state.connect(self.on_state)
 
-    @QtCore.Slot(QtCore.QModelIndex)
-    def on_rootindex(self, index):
-        self.setRootIndex(index)
-
-    @QtCore.Slot(int)
-    def on_state(self, state):
-        self.setEnabled(state == 1 or state == 7)
+    def setModel(self, model):
+        model.rootIndex.connect(self.setRootIndex)
+        self.unit.connect(model.onUnit)
+        QtGui.QTreeView.setModel(self, model)
 
     @QtCore.Slot(int)
-    def on_unit(self, pos):
+    def onUnit(self, pos):
         self.unit.emit(self.mapToGlobal(pos), self.header().logicalIndexAt(pos))
 
 
@@ -216,200 +157,203 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
 
     def createEditor(self, parent, option, index):
         node = index.internalPointer()
-        prop = node.Property
-        root = None
-        if node.parent:
-            root = node.parent.Property
-        if prop in ["m48e", "saf", "lim", "mfoe", "sl"]:
+        key = node.key
+        if key in ["m48e", "saf", "lim", "mfoe", "sl"]:
             menus = ("disable", "enable")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "ej":
+        elif key == "ej":
             menus = ("text", "JSON")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "js":
+        elif key == "js":
             menus = ("relaxed", "strict")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "gdi":
+        elif key == "gdi":
             menus = ("G90", "G91")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "gun":
+        elif key == "gun":
             menus = ("G20 inches", "G21 mm")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "gpl":
+        elif key == "gpl":
             menus = ("G17", "G18", "G19")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "gpa":
+        elif key == "gpa":
             menus = ("G61", "G61.1", "G64")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["cofp", "comp"]:
+        elif key in ["cofp", "comp"]:
             menus = ("low is ON", "high is ON")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop in ["coph", "spph"]:
+        elif key in ["unit"]:
+            menus = ("Inches", "Metric")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo        
+        elif key in ["coph", "spph"]:
             menus = ("no", "pause_on_hold")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "tv":
+        elif key == "tv":
             menus = ("silent", "verbose")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "sv" and node.Command == "sv":
+        elif key == "sv" and node.parent.key == "sv":
             menus = ("off", "filtered", "verbose")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "spep":
+        elif key == "spep":
             menus = ("active_low", "active_high")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "spdp":
+        elif key == "spdp":
             menus = ("CW_low", "CW_high")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "jv":
+        elif key == "jv":
             menus = ("silent", "footer", "messages", "configs", "linenum", "verbose")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "am":
+        elif key == "am":
             menus = ("disabled", "standard", "inhibited", "radius")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "hi":
+        elif key == "hi":
             menus = ("disable homing", "x axis", "y axis", "z axis", "a axis", "b axis", "c axis")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "hd":
+        elif key == "hd":
             menus = ("search-to-negative", "search-to-positive")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "ma":
+        elif key == "ma":
             menus = ("X", "Y", "Z", "A", "B", "C")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "po":
+        elif key == "po":
             menus = ("normal", "reverse")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "qv":
+        elif key == "qv":
             menus = ("off", "single", "triple")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "pm":
+        elif key == "pm":
             menus = ("disabled", "always on", "in cycle", "when moving")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i)
             return combo
-        elif prop == "gco":
+        elif key == "gco":
             menus = ("G54", "G55", "G56", "G57", "G58", "G59")
             combo = QtGui.QComboBox(parent)
             for i, m in enumerate(menus):
                 combo.addItem(m, i+1)
             return combo
-        elif prop == "mi":
+        elif key == "mi":
             menus = ("1", "2", "4", "8", "16", "32")
             combo = QtGui.QComboBox(parent)
             for i in menus:
                 combo.addItem(i, i)
             return combo
-        elif prop == "sv" and node.Command != "sv":
+        elif key == "sv" and node.parent.key != "sv":
             spin = QtGui.QSpinBox(parent)
             spin.setRange(0, 50000)
             return spin
-        elif prop in ["fr", "vm", "jm", "csl", "csh", "wsh", "wsl", "frq"]:
+        elif key in ["fr", "vm", "jm", "csl", "csh", "wsh", "wsl", "frq"]:
             spin = QtGui.QSpinBox(parent)
             spin.setRange(0, 50000)
             return spin
-        elif prop == "jh":
+        elif key == "jh":
             spin = QtGui.QSpinBox(parent)
             spin.setRange(0, 1000000)
             return spin
-        elif prop == "si":
+        elif key == "si":
             spin = QtGui.QSpinBox(parent)
             spin.setRange(100, 50000)
             return spin
-        elif prop == "spdw":
+        elif key == "spdw":
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(0, 10000)
             spin.setDecimals(1)
             return spin
-        elif prop in ["lv", "mt"]:
+        elif key in ["lv", "mt"]:
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(0, 10000)
             spin.setDecimals(2)
             return spin
-        elif prop == "ja":
+        elif key == "ja":
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(0, 1000)
             spin.setDecimals(2)
             return spin
-        elif prop == "mfo":
+        elif key == "mfo":
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(0.05, 2)
             spin.setDecimals(3)
             return spin
-        elif prop in ["cph", "cpl", "pl", "wpl", "wph", "pof"]:
+        elif key in ["cph", "cpl", "pl", "wpl", "wph", "pof"]:
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(0, 1)
             spin.setDecimals(3)
             return spin
-        elif prop == "sa":
+        elif key == "sa":
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(0, 10000)
             spin.setDecimals(3)
             return spin
-        elif prop in ["lb", "zb", "tn", "tm", "x", "y", "z", "a", "b", "c"]:
+        elif key in ["lb", "zb", "tn", "tm", "x", "y", "z", "a", "b", "c"]:
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(-10000, 10000)
             spin.setDecimals(3)
             return spin
-        elif prop in ["tr", "ct"]: #"jd"
+        elif key in ["tr", "ct"]: #"jd"
             spin = QtGui.QDoubleSpinBox(parent)
             spin.setRange(-10000, 10000)
             spin.setDecimals(4)
@@ -437,3 +381,20 @@ class PoolDelegate(QtGui.QStyledItemDelegate):
             model.setData(index, editor.text(), QtCore.Qt.EditRole)
 
 
+class TaskWatcher:
+
+    def __init__(self):
+        self.title = b"TinyG2 monitor"
+        self.icon = b"icons:Usb-Pool.xpm"
+        self.model = TinyG2Model.PoolBaseModel()
+        self.view = PoolPanel()
+        self.widgets = [self.view]
+
+    def shouldShow(self):
+        for obj in FreeCADGui.Selection.getSelection():
+            if AppScript.getObjectType(obj) == "App::UsbPool" and\
+               GuiScript.getObjectViewType(obj.ViewObject) == "Gui::UsbTinyG2":
+                self.view.setModel(obj.ViewObject.Proxy.Model)
+                return True
+        self.view.setModel(self.model)
+        return False

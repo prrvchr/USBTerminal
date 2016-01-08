@@ -24,16 +24,15 @@
 """ Minimal Pool default ViewProvider Plugin object """
 from __future__ import unicode_literals
 
-import FreeCADGui
-from PySide.QtCore import Qt
-from PySide.QtGui import QDockWidget
-from Gui import PySerialGui, TerminalDock, UsbPoolPanel
+import FreeCADGui, sys
+from Gui import Script, UsbPoolPanel, UsbPoolModel, PySerialGui
 
 
 class _ViewProviderPool:
 
     def __init__(self, vobj): #mandatory
-        self.Type = "Gui::UsbPool"
+        self.Model = UsbPoolModel.PoolModel(vobj.Object)
+        self.Type = "Gui::UsbPool"                
         for p in vobj.PropertiesList:
             if vobj.getGroupOfProperty(p) != "Base":
                 if p not in ["DualView"]:
@@ -54,37 +53,39 @@ class _ViewProviderPool:
         return None
 
     def attach(self, vobj):
-        self.Type = "Gui::UsbPool"
+        self.Model = UsbPoolModel.PoolModel(vobj.Object)
+        self.Type = "Gui::UsbPool"        
         self.Object = vobj.Object
-        return
 
     def getIcon(self):
         return "icons:Usb-Pool.xpm"
 
-    def onChanged(self, vobj, prop): #optional
-        pass
+    def getDisplayModes(self, vobj):
+        modes = [b"Shaded"]
+        return modes
 
-    def getObjectViewType(self, vobj):
-        if not vobj or vobj.TypeId != "Gui::ViewProviderPythonFeature":
-            return None
-        if "Proxy" in vobj.PropertiesList:
-            if hasattr(vobj.Proxy, "Type"):
-                return vobj.Proxy.Type
-        return None
+    def getDefaultDisplayMode(self):
+        return b"Shaded"
+
+    def setDisplayMode(self, mode):
+        return mode
+
+    def onChanged(self, vobj, prop): #optional
+        pass          
 
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
         if prop == "Serials":
             for o in obj.Serials:
-                if self.getObjectViewType(o.ViewObject) is None:
+                if Script.getObjectViewType(o.ViewObject) is None:
                     PySerialGui._ViewProviderPort(o.ViewObject)
 
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree
         if FreeCADGui.Control.activeDialog():
             return
-        t = UsbPoolPanel.UsbPoolTaskPanel(vobj.Object)
-        FreeCADGui.Control.showDialog(t)
+        panel = UsbPoolPanel.PoolTaskPanel(vobj.Object)            
+        FreeCADGui.Control.showDialog(panel)
 
     def unsetEdit(self, vobj, mode=0):
         # this is executed when the user cancels or terminates edit mode

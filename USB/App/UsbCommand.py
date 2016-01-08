@@ -25,36 +25,33 @@
 from __future__ import unicode_literals
 
 import FreeCAD
+from App import Script
 
 if FreeCAD.GuiUp:
     import FreeCADGui
-    from Gui import initResources
 
 
 class CommandPool:
 
     def GetResources(self):
-        return {b"Pixmap"  : b"icons:Usb-Pool.xpm",
-                b"MenuText": b"New Pool",
-                b"Accel"   : b"U, N",
-                b"ToolTip" : b"New Pool"}
+        return {b"Pixmap"   : b"icons:Usb-Pool.xpm",
+                b"MenuText" : b"New Pool",
+                b"Accel"    : b"U, N",
+                b"ToolTip"  : b"New Pool",
+                b"Checkable": True}
 
     def IsActive(self):
         return True
 
-    def Activated(self):
+    def Activated(self, index):
         if FreeCAD.ActiveDocument is None:
             FreeCAD.newDocument()
         FreeCAD.ActiveDocument.openTransaction(b"New Pool")
-        #FreeCADGui.addModule(b"App.UsbPool")
-        code = '''from App import UsbPool, PySerial
-from Gui import UsbPoolGui
+        code = '''from App import UsbPool
+from Gui import UsbPoolGui, PySerialGui
 obj = FreeCAD.ActiveDocument.addObject("App::DocumentObjectGroupPython", "Pool")
 UsbPool.Pool(obj)
-UsbPoolGui._ViewProviderPool(obj.ViewObject)
-o = obj.Document.addObject("App::FeaturePython", "PySerial")
-PySerial.PySerial(o)
-obj.Serials += [o]'''
+UsbPoolGui._ViewProviderPool(obj.ViewObject)'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
@@ -73,19 +70,19 @@ class CommandRefresh:
             s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
             if len(s):
                 obj = s[0]
-                if initResources.getObjectType(obj) == "App::UsbPool" or\
-                   initResources.getObjectType(obj) == "App::PySerial":
+                if Script.getObjectType(obj) == "App::UsbPool" or\
+                   Script.getObjectType(obj) == "App::PySerial":
                     return True
         return False
 
     def Activated(self):
         obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
         code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]\n'''
-        if initResources.getObjectType(obj) == "App::UsbPool":
+        if Script.getObjectType(obj) == "App::UsbPool":
             code += '''for o in obj.Serials:
     o.Proxy.Update = ["Port", "Baudrate"]
     o.touch()'''
-        if initResources.getObjectType(obj) == "App::PySerial":
+        if Script.getObjectType(obj) == "App::PySerial":
             code += '''obj.Proxy.Update = ["Port", "Baudrate"]
 obj.touch()'''
         FreeCADGui.doCommand(code)
@@ -105,21 +102,22 @@ class CommandOpen:
             s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
             if len(s):
                 obj = s[0]
-                if initResources.getObjectType(obj) == "App::UsbPool" or\
-                   initResources.getObjectType(obj) == "App::PySerial":
+                if Script.getObjectType(obj) == "App::PySerial" and\
+                   obj.Proxy.hasParent(obj) or\
+                   Script.getObjectType(obj) == "App::UsbPool":
                     return True
         return False
 
     def Activated(self):
         obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
         code = '''obj = Gui.Selection.getSelection(App.ActiveDocument.Name)[0]\n'''
-        if initResources.getObjectType(obj) == "App::PySerial":
-            obj = obj.InList[0]
-            code += '''obj = obj.InList[0]\n'''
+        if Script.getObjectType(obj) == "App::PySerial":
+            obj = obj.Proxy.getParent(obj)
+            code += '''obj = obj.Proxy.getParent(obj)\n'''
         if obj.Proxy.Machine.isRunning():
             code += '''obj.Proxy.Machine.stop()'''
         else:
-            code += '''obj.Proxy.Machine.start()'''            
+            code += '''obj.Proxy.Machine.start(obj)'''            
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
 
@@ -137,17 +135,19 @@ class CommandStart:
             s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
             if len(s):
                 obj = s[0]
-                if (initResources.getObjectType(obj) == "App::UsbPool" and obj.Open) or\
-                   (initResources.getObjectType(obj) == "App::PySerial" and obj.InList[0].Open):
+                if Script.getObjectType(obj) == "App::PySerial":
+                    obj = obj.Proxy.getParent(obj)                
+                if Script.getObjectType(obj) == "App::UsbPool" and\
+                   obj.Proxy.Machine.run:
                     return True
         return False
 
     def Activated(self):
         obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
         code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]\n'''
-        if initResources.getObjectType(obj) == "App::UsbPool":
+        if Script.getObjectType(obj) == "App::UsbPool":
             code += '''obj.Start = not obj.Start'''
-        if initResources.getObjectType(obj) == "App::PySerial":
+        if Script.getObjectType(obj) == "App::PySerial":
             code += '''obj.InList[0].Start = not obj.InList[0].Start'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()
@@ -166,17 +166,17 @@ class CommandPause:
             s = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)
             if len(s):
                 obj = s[0]
-                if (initResources.getObjectType(obj) == "App::UsbPool" and obj.Start) or\
-                   (initResources.getObjectType(obj) == "App::PySerial" and obj.InList[0].Start):
+                if (Script.getObjectType(obj) == "App::UsbPool" and obj.Start) or\
+                   (Script.getObjectType(obj) == "App::PySerial" and obj.InList[0].Start):
                     return True
         return False
 
     def Activated(self):
         obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]
         code = '''obj = FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name)[0]\n'''
-        if initResources.getObjectType(obj) == "App::UsbPool":
+        if Script.getObjectType(obj) == "App::UsbPool":
             code += '''obj.Pause = not obj.Pause'''
-        if initResources.getObjectType(obj) == "App::PySerial":
+        if Script.getObjectType(obj) == "App::PySerial":
             code += '''obj.InList[0].Pause = not obj.InList[0].Pause'''
         FreeCADGui.doCommand(code)
         FreeCAD.ActiveDocument.recompute()

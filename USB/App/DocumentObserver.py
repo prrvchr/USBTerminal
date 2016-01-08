@@ -26,18 +26,10 @@ from __future__ import unicode_literals
 
 import FreeCAD, FreeCADGui
 from PySide import QtCore
-from Gui import initResources
+from App import Script
 
 
 class DocumentObserver(QtCore.QObject):
-
-    changedUsbPool = QtCore.Signal(object)
-    line = QtCore.Signal(unicode)
-    gcode = QtCore.Signal(unicode)
-    data = QtCore.Signal(unicode)
-    datadic = QtCore.Signal(dict)
-    buffers = QtCore.Signal(unicode)
-    settings = QtCore.Signal(unicode)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -49,22 +41,23 @@ class DocumentObserver(QtCore.QObject):
         pass
 
     def slotDeletedDocument(self, doc):
-        if FreeCAD.GuiUp:
-            for o in doc.Objects:
-                self.slotDeletedObject(o)
+        for obj in doc.Objects:
+            self.slotDeletedObject(obj)
 
     def slotCreatedObject(self, obj):
         pass
 
     def slotDeletedObject(self, obj):
-        if FreeCAD.GuiUp:
-            if initResources.getObjectType(obj) == "App::UsbPool" and \
-               obj.Proxy.Machine.isRunning():
-                obj.Proxy.Machine.stop()
-                QtCore.QThreadPool.globalInstance().waitForDone()
+        if Script.getObjectType(obj) == "App::PySerial":           
+            if obj.Proxy.hasParent(obj):
+                obj = obj.Proxy.getParent(obj)
+        if Script.getObjectType(obj) == "App::UsbPool" and\
+           obj.Proxy.Machine.isRunning():
+            obj.Proxy.Machine.halt()
+            obj.Proxy.Machine.pool.waitForDone()
 
     def slotChangedObject(self, obj, prop):
-        typ = initResources.getObjectType(obj)
+        typ = Script.getObjectType(obj)
         if typ == "App::UsbPool":
             if prop in ("Open", "Start", "Pause"):
                 self.changedUsbPool.emit(obj)

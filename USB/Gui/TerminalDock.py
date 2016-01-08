@@ -24,21 +24,16 @@
 """ GUI Terminal Dock object """
 from __future__ import unicode_literals
 
-from PySide.QtGui import QDockWidget, QSplitter, QPlainTextEdit, QTextOption
-from PySide.QtGui import QTextCursor, QWidget, QVBoxLayout
-from PySide.QtCore import Qt, Signal, Slot, QThreadPool, QRunnable, QObject
-from FreeCAD import Console
-import FreeCADGui
-import io, json
+from PySide import QtCore, QtGui
 
 
-class TextEditWidget(QPlainTextEdit):
+class TextEditWidget(QtGui.QPlainTextEdit):
 
-    command = Signal(unicode)
+    command = QtCore.Signal(unicode)
 
     def __init__(self):
-        QPlainTextEdit.__init__(self)
-        self.setWordWrapMode(QTextOption.NoWrap)
+        QtGui.QPlainTextEdit.__init__(self)
+        self.setWordWrapMode(QtGui.QTextOption.NoWrap)
         self.setUndoRedoEnabled(False)
         self.history = []
 
@@ -47,11 +42,11 @@ class TextEditWidget(QPlainTextEdit):
         return self.document().findBlockByLineNumber(line).text()
 
     def setCommand(self, command):
-        self.moveCursor(QTextCursor.End)
-        self.moveCursor(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
+        self.moveCursor(QtGui.QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.KeepAnchor)
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
-        self.moveCursor(QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.End)
 
     def runCommand(self):
         command = self.getCommand()
@@ -78,64 +73,73 @@ class TextEditWidget(QPlainTextEdit):
         return ""
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Home:
-            self.moveCursor(QTextCursor.StartOfLine)
+        if e.key() == QtCore.Qt.Key_Home:
+            self.moveCursor(QtGui.QTextCursor.StartOfLine)
             return
-        elif e.key() == Qt.Key_PageUp:
+        elif e.key() == QtCore.Qt.Key_PageUp:
             return
-        elif e.key() in (Qt.Key_Left, Qt.Key_Backspace) and \
+        elif e.key() in (QtCore.Qt.Key_Left, QtCore.Qt.Key_Backspace) and \
              self.textCursor().columnNumber() == 0:
             return
-        elif e.key() == Qt.Key_Up:
+        elif e.key() == QtCore.Qt.Key_Up:
             self.setCommand(self.getPrevHistoryEntry())
             return
-        elif e.key() == Qt.Key_Down:
+        elif e.key() == QtCore.Qt.Key_Down:
             self.setCommand(self.getNextHistoryEntry())
             return
-        elif e.key() in (Qt.Key_Enter, Qt.Key_Return) and \
+        elif e.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return) and \
              not self.textCursor().atEnd():
-            self.moveCursor(QTextCursor.End)        
-        QPlainTextEdit.keyPressEvent(self, e)
-        if e.key() in (Qt.Key_Enter, Qt.Key_Return):
+            self.moveCursor(QtGui.QTextCursor.End)        
+        QtGui.QPlainTextEdit.keyPressEvent(self, e)
+        if e.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
             self.runCommand()
  
     def mouseReleaseEvent(self, e):
-        QPlainTextEdit.mouseReleaseEvent(self, e)
+        QtGui.QPlainTextEdit.mouseReleaseEvent(self, e)
         if self.textCursor().atEnd() or self.textCursor().hasSelection():
             return
-        self.moveCursor(QTextCursor.End)
+        self.moveCursor(QtGui.QTextCursor.End)
 
 
-class TerminalDock(QDockWidget):
+class TerminalDock(QtGui.QDockWidget):
 
     def __init__(self, state):
-        QDockWidget.__init__(self)
+        QtGui.QDockWidget.__init__(self)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.stop = True
         self.state = state
         obj = state.machine().obj
-        self.setWindowTitle("{} terminal".format(obj.Label))
+        self.setWindowTitle("{} terminal on {}".format(obj.Label, state.obj.Label))
         self.setObjectName("{}-{}".format(obj.Document.Name, obj.Name))
-        state.read.connect(self.on_output)
+        state.serialRead.connect(self.on_output)
+        state.machine().finished.connect(self.finished)
         if obj.ViewObject.DualView:
-            terminal = QSplitter(Qt.Vertical)
-            self.output = QPlainTextEdit()
+            terminal = QtGui.QSplitter(QtCore.Qt.Vertical)
+            self.output = QtGui.QPlainTextEdit()
             terminal.addWidget(self.output)
             textedit = TextEditWidget()
-            textedit.command.connect(state.write)
+            textedit.command.connect(state.serialWrite)
             terminal.addWidget(textedit)
         else:
-            terminal = QWidget(self)
-            terminal.setLayout(QVBoxLayout())
+            terminal = QtGui.QWidget(self)
+            terminal.setLayout(QtGui.QVBoxLayout())
             terminal.layout().setContentsMargins(0, 0, 0, 0)
             self.output = TextEditWidget()
-            self.output.command.connect(state.write)
+            self.output.command.connect(state.serialWrite)
             terminal.layout().addWidget(self.output)
         self.setWidget(terminal)
+        #state.serialWrite.emit("$")
 
-    @Slot(unicode)
+    @QtCore.Slot(unicode)
     def on_output(self, data):
         self.output.insertPlainText(data)
         self.output.ensureCursorVisible()
 
+    @QtCore.Slot()    
+    def finished(self):
+        self.stop = False
+        self.close()
+
     def closeEvent(self, e):
-        if self.state.machine().isRunning():
+        if self.stop and self.state.machine().isRunning():
             self.state.machine().stop()

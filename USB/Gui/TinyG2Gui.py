@@ -25,18 +25,15 @@
 from __future__ import unicode_literals
 
 import FreeCADGui
-from PySide.QtCore import Qt
-from PySide.QtGui import QDockWidget
-from Gui import UsbPoolGui, TinyG2Panel
-from Gui import TerminalDock
+from Gui import UsbPoolGui, TinyG2Panel, TinyG2Model
 from pivy import coin
 
 
 class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
 
     def __init__(self, vobj): #mandatory
+        self.Model = TinyG2Model.PoolModel(vobj.Object)
         self.Type = "Gui::UsbTinyG2"
-        self.indexPosition = 0
         for p in vobj.PropertiesList:
             if vobj.getGroupOfProperty(p) in ["Drawing", "Terminal"]:
                 if p not in ["Buffers", "Color", "Draw", "Positions", "DualView", "EchoFilter"]:
@@ -81,12 +78,11 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
         vobj.Proxy = self
 
     def attach(self, vobj):
-        UsbPoolGui._ViewProviderPool.attach(self, vobj)
+        self.Model = TinyG2Model.PoolModel(vobj.Object)
         self.Type = "Gui::UsbTinyG2"
-        self.indexPosition = 0
-        return
+        self.Object = vobj.Object
 
-    def onChanged(self, vobj, prop): #optional
+    def onChanged(self, vobj, prop):
         if prop == "Positions":
             if not vobj.Draw:
                 return
@@ -107,18 +103,9 @@ class _ViewProviderPool(UsbPoolGui._ViewProviderPool):
             no.addChild(li)
             vobj.RootNode.addChild(no)
 
-    def updateData(self, obj, prop): #optional
-        # this is executed when a property of the APP OBJECT changes
-        UsbPoolGui._ViewProviderPool.updateData(self, obj, prop)
-        if prop == "Start":
-            if obj.Start:
-                obs = FreeCADGui.getWorkbench("UsbWorkbench").observer
-                #obj.Process.uploader.line.connect(obs.line)
-                #obj.Process.uploader.gcode.connect(obs.gcode)
-
     def setEdit(self, vobj, mode=0):
         # this is executed when the object is double-clicked in the tree
         if FreeCADGui.Control.activeDialog():
             return
-        t = TinyG2Panel.UsbPoolTaskPanel(vobj.Object)
-        FreeCADGui.Control.showDialog(t)
+        panel = TinyG2Panel.PoolTaskPanel(vobj.Object)
+        FreeCADGui.Control.showDialog(panel)

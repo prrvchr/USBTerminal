@@ -24,111 +24,100 @@
 """ PySerial StateMachine document object """
 from __future__ import unicode_literals
 
-import FreeCAD, FreeCADGui, serial, io, json, time
-from PySide import QtCore, QtGui
-from App import UsbPoolPlugin
-from Gui import PySerialModel, TerminalDock
+import FreeCAD, serial, io, json
+from PySide import QtCore
 
 
 class SerialState(QtCore.QState):
-    
-    close = QtCore.Signal()
-    error = QtCore.Signal()
-    read = QtCore.Signal(unicode)
-    write = QtCore.Signal(unicode)
 
-    def __init__(self):
-        QtCore.QState.__init__(self)
+    serialOpen = QtCore.Signal()
+    serialClose = QtCore.Signal()
+    serialError = QtCore.Signal()
+    serialRead = QtCore.Signal(unicode)
+    serialWrite = QtCore.Signal(unicode)
+
+    def __init__(self, parent=None):
+        QtCore.QState.__init__(self, parent)
         self.setObjectName("Serial")
         self.obj = None
-        self.init = False
         self.sio = None
-        self.serial = serial.serial_for_url(None, do_not_open=True)
-        self.model = PySerialModel.PySerialModel(self)
-        
+
+        Init = InitState(self)
+        Init.setObjectName(b"Init")
         Open = OpenState(self)
-        Open.setObjectName("Open")
+        Open.setObjectName(b"Open")
         Close = CloseState(self)
-        Close.setObjectName("Close")
+        Close.setObjectName(b"Close")
         Error = ErrorState(self)
-        Error.setObjectName("Error")
-        Open.addTransition(SerialWriter(self.write[unicode]))
-        Open.addTransition(self, b"close()", Close)
-        Open.addTransition(self, b"error()", Error)
-        self.setInitialState(Open)
+        Error.setObjectName(b"Error")
 
-    def setState(self, state):
-        self.obj.State = b"{}".format(state)
+        Init.addTransition(self, b"serialOpen()", Open)
+        Init.addTransition(self, b"serialClose()", Close)
+        Init.addTransition(self, b"serialError()", Error)
+        Open.addTransition(SerialWriter(self.serialWrite[unicode]))
+        Open.addTransition(self, b"serialClose()", Close)        
+        Open.addTransition(self, b"serialError()", Error)
+        self.setInitialState(Init)
 
-    def openState(self):
-        if not self.serial.is_open:
-            port, settings = self.getSettings()
-            try:
-                self.serial = serial.serial_for_url(port, **settings)
-            except (serial.SerialException, ValueError) as e:
-                self.errorSerial(e)
-                self.error.emit()
-                return
-            else:
-                self.openSerial()
-        QtCore.QThreadPool.globalInstance().start(SerialReader(self))
-        if self.init:
-            self.openTerminal()
-            self.write.emit("$")
-
-    def closeState(self):
-        if self.serial.is_open:
-            self.closeSerial()
-        if self.init:
-            self.closeTerminal()        
-
-    def openSerial(self):
-        self.setSio()
-        if self.init: self.initPlugin()
-        self.model.setModel()
-        self.openSerialMsg()
-
-    def closeSerial(self):
-        self.serial.close()
-        self.sio = None
-        self.model.setModel()
-        self.closeSerialMsg()
-        if self.init: self.resetPlugin()
-
-    def errorSerial(self, e):
-        self.model.setModel()
-        self.errorSerialMsg(e)
+    def isDataChannel(self):
+        return self.obj.Proxy.isDataChannel(self.obj)
 
     def isUrl(self):
         return self.obj.Proxy.isUrl(self.obj)
 
-    def getSettings(self):
-        port = self.obj.Proxy.getPort(self.obj)
-        settings = self.obj.Proxy.getSettings(self.obj)
-        return port, settings
+    def isCtrlChannel(self):
+        return self.obj.Proxy.isCtrlChannel(self.obj)
 
-    def getCharEndOfLine(self):
-        return self.obj.Proxy.getCharEndOfLine(self.obj)
+    def getParent(self):
+        return self.obj.Proxy.getParent(self.obj)
 
-    def setSio(self):
-        eol = self.getCharEndOfLine()
-        s = io.BufferedRWPair(self.serial, self.serial)
+    def trySerialOpen(self):
+        if not self.obj.Proxy.Serial.is_open:
+            port, settings = self.obj.Proxy.getSettings(self.obj)
+            try:
+                self.obj.Proxy.Serial = serial.serial_for_url(port, **settings)
+            except (serial.SerialException, ValueError) as e:
+                self.serialErrorMsg(e)
+                return False
+            else:
+                self.doSerialOpen()
+        return True
+
+    def doSerialOpen(self):
+        eol = self.machine().getCharEndOfLine()
+        s = io.BufferedRWPair(self.obj.Proxy.Serial, self.obj.Proxy.Serial)
         self.sio = io.TextIOWrapper(s, newline=eol)
+        self.serialOpenMsg()
+
+    def isOpen(self):
+        return self.obj.Proxy.Serial.is_open
+
+    def doSerialClose(self):
+        if self.isOpen():
+            self.serialCloseMsg()
+            self.obj.Proxy.Serial.close()
+        self.sio = None
+
+    def doThreadClose(self):
+        self.stopThreadMsg()
+        self.doSerialClose()
+        self.resetExtra()
 
     def getSignature(self):
         # Need this hack for getting signature
         if not self.isUrl():
-            self.serial.close()
-            self.serial.open()
+            self.obj.Proxy.Serial.close()
+            self.obj.Proxy.Serial.open()
         # Now it's shure to have signature
         return self.sio.readline()
 
-    def getDevice(self):
-        device, extra = 0, {}
+    def getPlugin(self):
+        plugin, extra = b"UsbPool", {}
         try:
             s = json.loads(self.getSignature())
         except ValueError:
             pass
+            #device = __import__("App").UsbPool
         else:
             if s.has_key("r"):
                 r = s["r"]
@@ -137,50 +126,42 @@ class SerialState(QtCore.QState):
                     r.has_key("hv") and r["hv"] >= 0 and
                     r.has_key("fb") and r["fb"] >= 83.09 and
                     r.has_key("msg") and r.has_key("id")):
-                    device, extra = 1, {"msg": r["msg"], "id": r["id"]}
-        return device, extra
+                    plugin = b"TinyG2"
+                    #device = __import__("App").TinyG2
+                    extra = {"msg": r["msg"], "id": r["id"]}
+        return plugin, extra
 
-    def initPlugin(self):
-        device, extra = self.getDevice()
-        o = self.obj.Proxy.getParent(self.obj)
-        if device != o.Proxy.getIndexDevice(o):
-            self.deviceChangeMsg()
-        UsbPoolPlugin.initPlugin(o, device, extra)
-        o.Device = device
+    def newPlugin(self):
+        if self.isCtrlChannel():
+            plugin, extra = self.getPlugin()
+            o = self.getParent()
+            if plugin != o.Proxy.Plugin:
+                self.machine().plugin = plugin
+                self.newDeviceMsg(plugin)
+                return True
+            o.Proxy.setExtra(o, extra)
+        return False
 
-    def getTerminal(self):
-        name = "{}-{}".format(self.machine().obj.Document.Name, self.machine().obj.Name)
-        return FreeCADGui.getMainWindow().findChildren(QtGui.QDockWidget, name)
+    def resetExtra(self):
+        if self.isCtrlChannel():
+            o = self.getParent()
+            o.Proxy.resetExtra(o)
 
-    def openTerminal(self):
-        if self.getTerminal():
-            return
-        dock = TerminalDock.TerminalDock(self)
-        FreeCADGui.getMainWindow().addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
-
-    def closeTerminal(self):
-        for d in self.getTerminal():
-            d.setParent(None)
-            d.close()
-            
-    def resetPlugin(self):
-        UsbPoolPlugin.resetPlugin(self.obj.Proxy.getParent(self.obj))
-
-    def openSerialMsg(self):
+    def serialOpenMsg(self):
         msg = "{} opening port {}... done\n"
-        FreeCAD.Console.PrintLog(msg.format(self.obj.Label, self.serial.name))
+        FreeCAD.Console.PrintLog(msg.format(self.obj.Label, self.obj.Proxy.Serial.name))
 
-    def closeSerialMsg(self):
+    def serialCloseMsg(self):
         msg = "{} closing port {}... done\n"
-        FreeCAD.Console.PrintLog(msg.format(self.obj.Label, self.serial.name))
+        FreeCAD.Console.PrintLog(msg.format(self.obj.Label, self.obj.Proxy.Serial.name))
 
-    def errorSerialMsg(self, e):
+    def serialErrorMsg(self, e):
         msg = b"Error occurred opening port {}: {}\n"
-        FreeCAD.Console.PrintError(msg.format(self.serial.name, e))
+        FreeCAD.Console.PrintError(msg.format(self.obj.Proxy.Serial.name, e))
         
-    def deviceChangeMsg(self):
-        msg = "Configuration differente!!!\n"
-        FreeCAD.Console.PrintError(msg)
+    def newDeviceMsg(self, device):
+        msg = "{} StateMachine has detected a new {}: restart required!!!\n"
+        FreeCAD.Console.PrintWarning(msg.format(self.machine().obj.Label, device))
 
     def readerErrorMsg(self, e):
         msg = "Error occurred in SerialReader process: {}\n"
@@ -192,35 +173,55 @@ class SerialState(QtCore.QState):
 
     def startThreadMsg(self):
         msg = "{} UsbReader thread start on port {}... done\n"
-        FreeCAD.Console.PrintLog(msg.format(self.obj.Name, self.serial.name))
+        FreeCAD.Console.PrintLog(msg.format(self.obj.Name, self.obj.Proxy.Serial.name))
         
     def stopThreadMsg(self):
         msg = "{} UsbReader thread stop on port {}... done\n"
-        FreeCAD.Console.PrintLog(msg.format(self.obj.Name, self.serial.name))
+        FreeCAD.Console.PrintLog(msg.format(self.obj.Name, self.obj.Proxy.Serial.name))
 
     def errorThreadMsg(self, e):
         msg = "Error occurred in UsbReader thread process: {}\n"
         FreeCAD.Console.PrintError(msg.format(e))
 
 
+class InitState(QtCore.QState):
+
+    def onEntry(self, e):
+        self.parentState().obj.State = b"{}".format(self.objectName())
+        if self.parentState().trySerialOpen():
+            if self.parentState().newPlugin():
+                self.parentState().doSerialClose()
+                self.machine().startThread(RestartMachine(self.machine()))
+                self.machine().run = False                
+                self.parentState().serialClose.emit()
+            else:
+                self.parentState().serialOpen.emit()
+        else:
+            self.parentState().serialError.emit()
+
+
 class OpenState(QtCore.QState):
 
     def onEntry(self, e):
-        self.parentState().setState(self.objectName())
-        self.parentState().openState()
+        self.parentState().obj.State = b"{}".format(self.objectName())        
+        self.machine().startThread(SerialReader(self.parentState()))
 
 
 class CloseState(QtCore.QFinalState):
     
     def onEntry(self, e):
-        self.parentState().setState(self.objectName())
-        self.parentState().closeState()
-
+        # Need to try: on close document serialClose is emited... 
+        # and obj already deleted
+        try:
+            self.parentState().obj.State = b"{}".format(self.objectName())
+            self.parentState().obj.purgeTouched()
+        except ReferenceError:
+            pass
 
 class ErrorState(QtCore.QFinalState):
     
     def onEntry(self, e):
-        self.parentState().setState(self.objectName())
+        self.parentState().obj.State = b"{}".format(self.objectName())
         self.machine().run = False
 
 
@@ -233,6 +234,7 @@ class SerialWriter(QtCore.QSignalTransition):
             state.sio.flush()
         except Exception as e:
             state.writerErrorMsg(e)
+            state.serialError.emit()
 
 
 class SerialReader(QtCore.QRunnable):
@@ -240,18 +242,40 @@ class SerialReader(QtCore.QRunnable):
     def __init__(self, state):
         QtCore.QRunnable.__init__(self)
         self.state = state
-        state.machine().run = True
 
     def run(self):
         """ Loop and read PySerial """
-        self.state.startThreadMsg()
         try:
+            isCtrl = self.state.isCtrlChannel()
+            if isCtrl:
+                self.state.machine().ctrlStart.emit()
+            self.state.startThreadMsg()
             while self.state.machine().run:
                 line = self.state.sio.readline()
                 if len(line):
-                    self.state.read.emit(line)
+                    self.state.serialRead.emit(line)
+                    if isCtrl:
+                        self.state.machine().serialRead.emit(line)
+            self.state.doThreadClose()
+            if isCtrl:
+                self.state.machine().ctrlStop.emit()
+            self.state.serialClose.emit()
         except Exception as e:
             self.state.errorThreadMsg(e)
-        else:
-            self.state.stopThreadMsg()
-        self.state.close.emit()
+            self.state.serialError.emit()
+
+
+class RestartMachine(QtCore.QRunnable):
+
+    def __init__(self, machine):
+        QtCore.QRunnable.__init__(self)
+        self.machine = machine
+
+    def run(self):
+        """ Wait for restart StateMachine """
+        try:
+            while self.machine.isRunning():
+                pass
+            self.machine.restart.emit(self.machine.obj)
+        except Exception as e:
+            self.machine.machineErrorMsg(e)

@@ -32,18 +32,16 @@ from App import PySerialState
 class PySerial:
 
     def __init__(self, obj):
+        self.Serial = serial.serial_for_url(None, do_not_open=True)
         self.Type = "App::PySerial"
-        self.States = PySerialState.SerialState()
         """ Internal property for management of data update """
-        self.Update = []
+        self.Update = ["Init"]
         """ PySerial Base driving property """
         obj.addProperty("App::PropertyEnumeration",
                         "State",
                         "Base",
-                        "State of PySerial Machine [Open, Close, Error]", 2)
+                        "State of PySerial Machine [Open, Close, Error]", 1)
         obj.State = self.getState()
-        obj.State = b"Close"
-        obj.setEditorMode("State", 1)
         """ PySerial port property """
         obj.addProperty("App::PropertyEnumeration",
                         "Baudrate",
@@ -71,8 +69,8 @@ class PySerial:
                         "Parity",
                         "PySerial",
                         "set parity (None, Even, Odd, Space, Mark) default N")
-        obj.Parity = map(str, serial.Serial().PARITIES)
-        obj.Parity = b"N"
+        obj.Parity = serial.PARITY_NAMES.values()
+        obj.Parity = serial.PARITY_NAMES[serial.PARITY_NONE]
         obj.addProperty("App::PropertyString",
                         "Port",
                         "PySerial",
@@ -121,13 +119,13 @@ class PySerial:
         return None
 
     def __setstate__(self, state):
+        self.Serial = serial.serial_for_url(None, do_not_open=True)
         self.Type = "App::PySerial"
-        self.States = PySerialState.SerialState()
-        self.Update = []
+        self.Update = ["Init"]
         return None
 
     def getState(self):
-        return [b"Open", b"Close", b"Error"]
+        return [b"Close", b"Init", b"Open", b"Start", b"Run", b"Error"]
 
     def getDetails(self):
         return [b"Detail", b"Standart", b"VID:PID"]
@@ -150,7 +148,7 @@ class PySerial:
         except StopIteration:
             return i
         return -1
-
+    
     def refreshPorts(self, obj):
         index = self.getPortsIndex(obj)
         obj.Ports = self.getPorts(obj)
@@ -163,71 +161,130 @@ class PySerial:
         obj.Baudrate = baudrate
 
     def execute(self, obj):
-        if obj.Proxy.Update:
-            if "Port" in obj.Proxy.Update:
+        if self.Update:
+            if "Port" in self.Update:
                 self.refreshPorts(obj)
-            if "Baudrate" in obj.Proxy.Update:
+            if "Baudrate" in self.Update:
                 self.refreshBaudrate(obj)
-            obj.Proxy.Update = []
+            self.Update = []
 
     def onChanged(self, obj, prop):
-        if prop == "Proxy":
-            self.States.obj = obj
+        if prop == "Label":
+            if "Init" in self.Update:
+                p, s = self.getSettings(obj)
+                self.Serial = serial.serial_for_url(p, do_not_open=True, **s)
+                self.Update = []
         if prop == "Details":
-            obj.Proxy.Update = ["Port"]
+            self.Update = ["Port"]
             self.refreshPorts(obj)
-            obj.Proxy.Update = []
+            self.Update = []
         if prop == "Ports":
-            if not obj.Proxy.Update and self.getPortsIndex(obj) != -1:
+            if not self.Update and self.getPortsIndex(obj) != -1:
                 if self.getDetailsIndex(obj) == 0:
                     obj.Port = obj.Ports
                 else:
                     obj.Port = b"hwgrep://" + obj.Ports
+        msg = "Error occurred in {} {{}}'s property value assignment: {{}}\n"
+        msg = msg.format(obj.Label)
         if prop == "Baudrate":
-            self.States.serial.baudrate = self.getBaudrate(obj)
+            try:
+                self.Serial.baudrate = self.getBaudrate(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "ByteSize":
-            self.States.serial.bytesize = self.getByteSize(obj)
+            try:
+                self.Serial.bytesize = self.getByteSize(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "DsrDtr":
-            self.States.serial.dsrdtr = self.getDsrDtr(obj)
+            try:
+                self.Serial.dsrdtr = self.getDsrDtr(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "InterByteTimeout":
-            self.States.serial.inter_byte_timeout = self.getInterByteTimeout(obj)
+            try:
+                self.Serial.inter_byte_timeout = self.getInterByteTimeout(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "Parity":
-            self.States.serial.parity = self.getParity(obj)
+            try:
+                self.Serial.parity = self.getParity(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))
         if prop == "Port":
-            self.States.serial.port = self.getPort(obj)
+            try:
+                self.Serial.port = self.getPort(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))
         if prop == "RtsCts":
-            self.States.serial.rtscts = self.getRtsCts(obj)
+            try:
+                self.Serial.rtscts = self.getRtsCts(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "StopBits":
-            self.States.serial.stopbits = self.getStopBits(obj)
+            try:
+                self.Serial.stopbits = self.getStopBits(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "Timeout":
-            self.States.serial.timeout = self.getTimeout(obj)
+            try:
+                self.Serial.timeout = self.getTimeout(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "WriteTimeout":
-            self.States.serial.write_timeout = self.getWriteTimeout(obj)
+            try:
+                self.Serial.write_timeout = self.getWriteTimeout(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))            
         if prop == "XonXoff":
-            self.States.serial.xonxoff = self.getXonXoff(obj)
-            
+            try:
+                self.Serial.xonxoff = self.getXonXoff(obj)
+            except (serial.SerialException, ValueError) as e:
+                FreeCAD.Console.PrintError(msg.format(prop, e))
+
+    def hasParent(self, obj):
+        return len(obj.InList) > 0
+
     def getParent(self, obj):
         return obj.InList[0]
 
-    def isInit(self, obj):
-        o = self.getParent(obj)
-        return o.Serials[0] == obj
+    def getMachineState(self, obj):
+        if self.hasParent(obj):
+            o = self.getParent(obj)
+            index = o.Serials.index(obj)
+            return o.Proxy.Machine.Serials[o.Serials.index(obj)]
+        return None
+
+    def isDataChannel(self, obj):
+        if self.hasParent(obj):
+            o = self.getParent(obj)
+            return o.Proxy.getDataChannel(o) == obj
+        return False
+
+    def isCtrlChannel(self, obj):
+        if self.hasParent(obj):
+            o = self.getParent(obj)
+            return o.Proxy.getCtrlChannel(o) == obj
+        return False
 
     def getCharEndOfLine(self, obj):
-        o = self.getParent(obj)
-        return o.Proxy.getCharEndOfLine(o)
+        if self.hasParent(obj):
+            o = self.getParent(obj)
+            return o.Proxy.getCharEndOfLine(o)
+        return "\n"
 
     def getSettings(self, obj):
-        return {b"baudrate" : self.getBaudrate(obj),
-                b"bytesize" : self.getByteSize(obj),
-                b"parity" : self.getParity(obj),
-                b"stopbits" : self.getStopBits(obj),
-                b"xonxoff" : self.getXonXoff(obj),
-                b"rtscts" : self.getRtsCts(obj),
-                b"dsrdtr" : self.getDsrDtr(obj),
-                b"timeout" : self.getTimeout(obj),
-                b"write_timeout" : self.getWriteTimeout(obj),
-                b"inter_byte_timeout" : self.getInterByteTimeout(obj)}
+        return (self.getPort(obj),
+                {b"baudrate" : self.getBaudrate(obj),
+                 b"bytesize" : self.getByteSize(obj),
+                 b"parity" : self.getParity(obj),
+                 b"stopbits" : self.getStopBits(obj),
+                 b"xonxoff" : self.getXonXoff(obj),
+                 b"rtscts" : self.getRtsCts(obj),
+                 b"dsrdtr" : self.getDsrDtr(obj),
+                 b"timeout" : self.getTimeout(obj),
+                 b"write_timeout" : self.getWriteTimeout(obj),
+                 b"inter_byte_timeout" : self.getInterByteTimeout(obj)})
 
     def isUrl(self, obj):
         return "://" in obj.Port
@@ -239,7 +296,8 @@ class PySerial:
     def getByteSize(self, obj):
         return int(obj.ByteSize)
     def getParity(self, obj):
-        return b"{}".format(obj.Parity)
+        parity = serial.PARITY_NAMES
+        return b"{}".format(parity.keys()[parity.values().index(obj.Parity)])
     def getStopBits(self, obj):
         return float(obj.StopBits)
     def getXonXoff(self, obj):

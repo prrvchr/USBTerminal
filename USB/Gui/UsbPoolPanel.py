@@ -26,16 +26,18 @@ from __future__ import unicode_literals
 
 import FreeCADGui
 from PySide import QtCore, QtGui
-from Gui import UsbPoolModel
+from App import  Script as AppScript
+from Gui import UsbPoolModel, Script as GuiScript
 
 
-class UsbPoolTaskPanel:
+class PoolTaskPanel:
 
     def __init__(self, obj):
-        model = UsbPoolModel.PoolModel()
-        panel = UsbPoolPanel(model)
-        model.setModel(obj)
-        self.form = panel
+        view = PoolPanel()
+        model = obj.ViewObject.Proxy.Model
+        if model.obj is None: model.obj = obj
+        view.setModel(model)
+        self.form = [view]
 
     def accept(self):
         FreeCADGui.ActiveDocument.resetEdit()
@@ -71,9 +73,9 @@ class UsbPoolTaskPanel:
         pass
 
 
-class UsbPoolPanel(QtGui.QGroupBox):
+class PoolPanel(QtGui.QGroupBox):
 
-    def __init__(self, model):
+    def __init__(self):
         QtGui.QGroupBox.__init__(self)
         self.setWindowIcon(QtGui.QIcon("icons:Usb-Pool.xpm"))
         layout = QtGui.QGridLayout(self)
@@ -82,8 +84,28 @@ class UsbPoolPanel(QtGui.QGroupBox):
         layout.addWidget(txt, 0, 0, 1, 1)
         txt1 = QtGui.QLabel("Chose another plugin in Pool properties")
         layout.addWidget(txt1, 1, 0, 1, 1)
-        model.title.connect(self.on_title)
 
-    @QtCore.Slot(unicode)
-    def on_title(self, title):
-        self.setWindowTitle("Usb {} monitor".format(title))
+    def setModel(self, model):
+        if model.obj is not None:
+            self.setWindowTitle("Usb {} monitor".format(model.obj.Label))
+
+
+class TaskWatcher:
+
+    def __init__(self):
+        self.title = b"Pool monitor"
+        self.icon = b"icons:Usb-Pool.xpm"
+        self.model = UsbPoolModel.PoolBaseModel()
+        self.view = PoolPanel()
+        self.widgets = [self.view]
+
+    def shouldShow(self):
+        for obj in FreeCADGui.Selection.getSelection():
+            if AppScript.getObjectType(obj) == "App::UsbPool" and\
+               GuiScript.getObjectViewType(obj.ViewObject) == "Gui::UsbPool":
+                model = obj.ViewObject.Proxy.Model
+                if model.obj is None: model.obj = obj
+                self.view.setModel(model)
+                return True
+        self.view.setModel(self.model)
+        return False
