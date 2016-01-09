@@ -49,9 +49,9 @@ class Pool:
             obj.addProperty("App::PropertyEnumeration",
                             "EndOfLine",
                             "Base",
-                            "End of line char (\\r, \\n, or \\r\\n)")
+                            "End of line char (\\n, \\r, or \\r\\n)")
             obj.EndOfLine = self.getEndOfLine()
-            obj.EndOfLine = b"LF"
+            #obj.EndOfLine = b"LF"
         """ Link to PySerial document object """
         if "Serials" not in obj.PropertiesList:
             obj.addProperty("App::PropertyLinkList",
@@ -70,9 +70,8 @@ class Pool:
             obj.addProperty("App::PropertyEnumeration",
                             "Device",
                             "Driver",
-                            "Usb Device Plugin driver")
-            obj.Device = [b"Generic Device", b"TinyG2 Device"]
-            obj.setEditorMode("Device", 1)
+                            "Usb Device Plugin driver", 1)
+            obj.Device = self.getDevice()
         obj.Device = 0
         obj.Proxy = self
 
@@ -92,17 +91,20 @@ class Pool:
     def resetExtra(self, obj):
         pass
 
+    def getDevice(self):
+        return [b"Generic Device", b"TinyG2 Device"]
+
     def getState(self):
         return [b"Off", b"On", b"Error"]
 
     def getEndOfLine(self):
-        return [b"CR", b"LF", b"CRLF"]
+        return [b"LF", b"CR", b"CRLF"]
 
     def getIndexEndOfLine(self, obj):
         return self.getEndOfLine().index(obj.EndOfLine)
 
     def getCharEndOfLine(self, obj):
-        return ["\r", "\n", "\r\n"][self.getIndexEndOfLine(obj)]
+        return ["\n", "\r", "\r\n"][self.getIndexEndOfLine(obj)]
 
     def getCtrlChannel(self, obj):
         return obj.Serials[0]

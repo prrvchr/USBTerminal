@@ -71,6 +71,14 @@ class Pool(UsbPool.Pool):
                             "Files to upload")
             p = os.path.dirname(__file__) + "/../Examples/boomerangv4.ncc"
             obj.UploadFile = os.path.abspath(p)
+        """ Usb Device driver property """
+        if "Device" not in obj.PropertiesList:
+            obj.addProperty("App::PropertyEnumeration",
+                            "Device",
+                            "Driver",
+                            "Usb Device Plugin driver", 1)
+            obj.Device = self.getDevice()
+        obj.Device = 1
         obj.Proxy = self
 
     def __setstate__(self, state):

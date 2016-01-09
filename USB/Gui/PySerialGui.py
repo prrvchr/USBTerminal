@@ -44,6 +44,7 @@ class _ViewProviderPort:
         return None
 
     def attach(self, vobj):
+        print "PySerialGui.attach()"
         self.Model = PySerialModel.PySerialModel(vobj.Object)
         self.Type = "Gui::PySerial"
         self.Object = vobj.Object
