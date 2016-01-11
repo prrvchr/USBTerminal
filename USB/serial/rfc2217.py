@@ -1,12 +1,10 @@
 #! python
 #
-# Python Serial Port Extension for Win32, Linux, BSD, Jython
-# see __init__.py
-#
 # This module implements a RFC2217 compatible client. RF2217 descibes a
 # protocol to access serial ports over TCP/IP and allows setting the baud rate,
 # modem control lines etc.
 #
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # (C) 2001-2015 Chris Liechti <cliechti@gmx.net>
 #
 # SPDX-License-Identifier:    BSD-3-Clause
@@ -378,6 +376,11 @@ class Serial(SerialBase):
     BAUDRATES = (50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800,
                  9600, 19200, 38400, 57600, 115200)
 
+    def __init__(self, *args, **kwargs):
+        super(Serial, self).__init__(*args, **kwargs)
+        self._thread = None
+        self._socket = None
+
     def open(self):
         """\
         Open port with current settings. This may throw a SerialException
@@ -441,36 +444,40 @@ class Serial(SerialBase):
         # RFC 2217 flow control between server and client
         self._remote_suspend_flow = False
 
+        self.is_open = True
         self._thread = threading.Thread(target=self._telnetReadLoop)
         self._thread.setDaemon(True)
         self._thread.setName('pySerial RFC 2217 reader thread for %s' % (self._port,))
         self._thread.start()
 
-        # negotiate Telnet/RFC 2217 -> send initial requests
-        for option in self._telnet_options:
-            if option.state is REQUESTED:
-                self.telnetSendOption(option.send_yes, option.option)
-        # now wait until important options are negotiated
-        timeout_time = time.time() + self._network_timeout
-        while time.time() < timeout_time:
-            time.sleep(0.05)    # prevent 100% CPU load
-            if sum(o.active for o in mandadory_options) == sum(o.state != INACTIVE for o in mandadory_options):
-                break
-        else:
-            raise SerialException("Remote does not seem to support RFC2217 or BINARY mode %r" % mandadory_options)
-        if self.logger:
-            self.logger.info("Negotiated options: %s" % self._telnet_options)
+        try:    # must clean-up if open fails
+            # negotiate Telnet/RFC 2217 -> send initial requests
+            for option in self._telnet_options:
+                if option.state is REQUESTED:
+                    self.telnetSendOption(option.send_yes, option.option)
+            # now wait until important options are negotiated
+            timeout_time = time.time() + self._network_timeout
+            while time.time() < timeout_time:
+                time.sleep(0.05)    # prevent 100% CPU load
+                if sum(o.active for o in mandadory_options) == sum(o.state != INACTIVE for o in mandadory_options):
+                    break
+            else:
+                raise SerialException("Remote does not seem to support RFC2217 or BINARY mode %r" % mandadory_options)
+            if self.logger:
+                self.logger.info("Negotiated options: %s" % self._telnet_options)
 
-        # fine, go on, set RFC 2271 specific things
-        self._reconfigure_port()
-        # all things set up get, now a clean start
-        self.is_open = True
-        if not self._dsrdtr:
-            self._update_dtr_state()
-        if not self._rtscts:
-            self._update_rts_state()
-        self.reset_input_buffer()
-        self.reset_output_buffer()
+            # fine, go on, set RFC 2271 specific things
+            self._reconfigure_port()
+            # all things set up get, now a clean start
+            if not self._dsrdtr:
+                self._update_dtr_state()
+            if not self._rtscts:
+                self._update_rts_state()
+            self.reset_input_buffer()
+            self.reset_output_buffer()
+        except:
+            self.close()
+            raise
 
     def _reconfigure_port(self):
         """Set communication parameters on opened port."""
@@ -518,20 +525,20 @@ class Serial(SerialBase):
 
     def close(self):
         """Close port"""
-        if self.is_open:
-            if self._socket:
-                try:
-                    self._socket.shutdown(socket.SHUT_RDWR)
-                    self._socket.close()
-                except:
-                    # ignore errors.
-                    pass
-                self._socket = None
-            if self._thread:
-                self._thread.join()
-            self.is_open = False
+        self.is_open = False
+        if self._socket:
+            try:
+                self._socket.shutdown(socket.SHUT_RDWR)
+                self._socket.close()
+            except:
+                # ignore errors.
+                pass
+        if self._thread:
+            self._thread.join(7)  # XXX more than socket timeout
+            self._thread = None
             # in case of quick reconnects, give the server some time
             time.sleep(0.3)
+        self._socket = None
 
     def from_url(self, url):
         """extract host and port from an URL string"""
@@ -696,7 +703,7 @@ class Serial(SerialBase):
         mode = M_NORMAL
         suboption = None
         try:
-            while self._socket is not None:
+            while self.is_open:
                 try:
                     data = self._socket.recv(1024)
                 except socket.timeout:

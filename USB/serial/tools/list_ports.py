@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-
-# portable serial port access with python
-# this is a wrapper module for different platform implementations of the
-# port enumeration feature
 #
+# Serial port enumeration. Console tool and backend selection.
+#
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # (C) 2011-2015 Chris Liechti <cliechti@gmx.net>
 #
 # SPDX-License-Identifier:    BSD-3-Clause
@@ -42,9 +41,10 @@ def grep(regexp):
     same tuples as comport() would do.
     """
     r = re.compile(regexp, re.I)
-    for port, desc, hwid in comports():
+    for info in comports():
+        port, desc, hwid = info
         if r.search(port) or r.search(desc) or r.search(hwid):
-            yield port, desc, hwid
+            yield info
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -78,7 +78,8 @@ def main():
     hits = 0
     # get iteraror w/ or w/o filter
     if args.regexp:
-        sys.stderr.write("Filtered list with regexp: %r\n" % (args.regexp,))
+        if not args.quiet:
+            sys.stderr.write("Filtered list with regexp: %r\n" % (args.regexp,))
         iterator = sorted(grep(args.regexp))
     else:
         iterator = sorted(comports())

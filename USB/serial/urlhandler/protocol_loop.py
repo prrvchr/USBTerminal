@@ -1,13 +1,11 @@
 #! python
 #
-# Python Serial Port Extension for Win32, Linux, BSD, Jython
-# see __init__.py
-#
 # This module implements a loop back connection receiving itself what it sent.
 #
 # The purpose of this module is.. well... You can run the unit tests with it.
 # and it was so easy to implement ;-)
 #
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # (C) 2001-2015 Chris Liechti <cliechti@gmx.net>
 #
 # SPDX-License-Identifier:    BSD-3-Clause
@@ -47,6 +45,8 @@ class Serial(SerialBase):
     def __init__(self, *args, **kwargs):
         super(Serial, self).__init__(*args, **kwargs)
         self.buffer_size = 4096
+        self.queue = None
+        self.logger = None
 
     def open(self):
         """\
@@ -76,11 +76,12 @@ class Serial(SerialBase):
         self.reset_output_buffer()
 
     def close(self):
-        self.is_open = False
-        try:
-            self.queue.put_nowait(None)
-        except queue.Full:
-            pass
+        if self.is_open:
+            self.is_open = False
+            try:
+                self.queue.put_nowait(None)
+            except queue.Full:
+                pass
         super(Serial, self).close()
 
     def _reconfigure_port(self):

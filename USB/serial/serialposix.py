@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 #
-# Python Serial Port Extension for Win32, Linux, BSD, Jython
-# module for serial IO for POSIX compatible systems, like Linux
-# see __init__.py
+# backend for serial IO for POSIX compatible systems, like Linux, OSX
 #
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # (C) 2001-2015 Chris Liechti <cliechti@gmx.net>
 #
 # SPDX-License-Identifier:    BSD-3-Clause
@@ -296,7 +295,7 @@ class Serial(SerialBase, PlatformSpecific):
         #~ fcntl.fcntl(self.fd, fcntl.F_SETFL, 0)  # set blocking
 
         try:
-            self._reconfigure_port()
+            self._reconfigure_port(force_update=True)
         except:
             try:
                 os.close(self.fd)
@@ -314,7 +313,7 @@ class Serial(SerialBase, PlatformSpecific):
             self._update_rts_state()
         self.reset_input_buffer()
 
-    def _reconfigure_port(self):
+    def _reconfigure_port(self, force_update=False):
         """Set communication parameters on opened port."""
         if self.fd is None:
             raise SerialException("Can only operate on a valid file descriptor")
@@ -435,7 +434,7 @@ class Serial(SerialBase, PlatformSpecific):
             raise ValueError('Invalid vtime: %r' % vtime)
         cc[termios.VTIME] = vtime
         # activate settings
-        if [iflag, oflag, cflag, lflag, ispeed, ospeed, cc] != orig_attr:
+        if force_update or [iflag, oflag, cflag, lflag, ispeed, ospeed, cc] != orig_attr:
             termios.tcsetattr(
                     self.fd,
                     termios.TCSANOW,
@@ -475,9 +474,11 @@ class Serial(SerialBase, PlatformSpecific):
         if not self.is_open:
             raise portNotOpenError
         read = bytearray()
+        timeout = self._timeout
         while len(read) < size:
             try:
-                ready, _, _ = select.select([self.fd], [], [], self._timeout)
+                start_time = time.time()
+                ready, _, _ = select.select([self.fd], [], [], timeout)
                 # If select was used with a timeout, and the timeout occurs, it
                 # returns with empty lists -> thus abort read operation.
                 # For timeout == 0 (non-blocking operation) also abort when
@@ -493,6 +494,10 @@ class Serial(SerialBase, PlatformSpecific):
                     # but reading returns nothing.
                     raise SerialException('device reports readiness to read but returned no data (device disconnected or multiple access on port?)')
                 read.extend(buf)
+                if timeout is not None:
+                    timeout -= time.time() - start_time
+                    if timeout <= 0:
+                        break
             except OSError as e:
                 # this is for Python 3.x where select.error is a subclass of
                 # OSError ignore EAGAIN errors. all other errors are shown
@@ -540,6 +545,9 @@ class Serial(SerialBase, PlatformSpecific):
             except OSError as v:
                 if v.errno != errno.EAGAIN:
                     raise SerialException('write failed: %s' % (v,))
+                # still calculate and check timeout
+                if timeout and timeout - time.time() < 0:
+                    raise writeTimeoutError
         return len(data)
 
     def flush(self):
@@ -725,7 +733,7 @@ class VTIMESerial(Serial):
     Overall timeout is disabled when inter-character timeout is used.
     """
 
-    def _reconfigure_port(self):
+    def _reconfigure_port(self, force_update=True):
         """Set communication parameters on opened port."""
         super(VTIMESerial, self)._reconfigure_port()
         fcntl.fcntl(self.fd, fcntl.F_SETFL, 0) # clear O_NONBLOCK

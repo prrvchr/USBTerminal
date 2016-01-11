@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 #
-# portable serial port access with python
-#
 # This is a helper module for the various platform dependent list_port
 # implementations.
 #
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # (C) 2015 Chris Liechti <cliechti@gmx.net>
 #
 # SPDX-License-Identifier:    BSD-3-Clause
@@ -70,7 +69,7 @@ class ListPortInfo(object):
         return numsplit(self.device) < numsplit(other.device)
 
     def __str__(self):
-        return '{} - {}'.format(self.device, self.describe())
+        return '{} - {}'.format(self.device, self.description)
 
     def __getitem__(self, index):
         """Item access: backwards compatible -> (port, desc, hwid)"""

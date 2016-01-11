@@ -1,10 +1,10 @@
 #! python
-# Python Serial Port Extension for Win32, Linux, BSD, Jython
-# serial driver for win32
-# see __init__.py
+#
+# backend for Windows ("win32" incl. 32/64 bit support)
 #
 # (C) 2001-2015 Chris Liechti <cliechti@gmx.net>
 #
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # SPDX-License-Identifier:    BSD-3-Clause
 #
 # Initial patch to use ctypes by Giovanni Bajo <rasky@develer.com>
@@ -105,22 +105,23 @@ class Serial(SerialBase):
         # (ReadIntervalTimeout,ReadTotalTimeoutMultiplier,
         #  ReadTotalTimeoutConstant,WriteTotalTimeoutMultiplier,
         #  WriteTotalTimeoutConstant)
+        timeouts = win32.COMMTIMEOUTS()
         if self._timeout is None:
-            timeouts = (0, 0, 0, 0, 0)
+            pass  # default of all zeros is OK
         elif self._timeout == 0:
-            timeouts = (win32.MAXDWORD, 0, 0, 0, 0)
+            timeouts.ReadIntervalTimeout = win32.MAXDWORD
         else:
-            timeouts = (0, 0, int(self._timeout * 1000), 0, 0)
+            timeouts.ReadTotalTimeoutConstant = max(int(self._timeout * 1000), 1)
         if self._timeout != 0 and self._inter_byte_timeout is not None:
-            timeouts = (int(self._inter_byte_timeout * 1000),) + timeouts[1:]
+            timeouts.ReadIntervalTimeout = max(int(self._inter_byte_timeout * 1000), 1)
 
         if self._write_timeout is None:
             pass
         elif self._write_timeout == 0:
-            timeouts = timeouts[:-2] + (0, win32.MAXDWORD)
+            timeouts.WriteTotalTimeoutConstant = win32.MAXDWORD
         else:
-            timeouts = timeouts[:-2] + (0, int(self._write_timeout * 1000))
-        win32.SetCommTimeouts(self._port_handle, ctypes.byref(win32.COMMTIMEOUTS(*timeouts)))
+            timeouts.WriteTotalTimeoutConstant = max(int(self._write_timeout * 1000), 1)
+        win32.SetCommTimeouts(self._port_handle, ctypes.byref(timeouts))
 
         win32.SetCommMask(self._port_handle, win32.EV_ERR)
 
@@ -216,7 +217,7 @@ class Serial(SerialBase):
         comDCB.XoffChar = serial.XOFF
 
         if not win32.SetCommState(self._port_handle, ctypes.byref(comDCB)):
-            raise ValueError("Cannot configure port, some setting was wrong. Original message: %r" % ctypes.WinError())
+            raise SerialException("Cannot configure port, something went wrong. Original message: %r" % ctypes.WinError())
 
     #~ def __del__(self):
         #~ self.close()
@@ -271,20 +272,20 @@ class Serial(SerialBase):
                 if n > 0:
                     buf = ctypes.create_string_buffer(n)
                     rc = win32.DWORD()
-                    err = win32.ReadFile(self._port_handle, buf, n, ctypes.byref(rc), ctypes.byref(self._overlapped_read))
-                    if not err and win32.GetLastError() != win32.ERROR_IO_PENDING:
+                    read_ok = win32.ReadFile(self._port_handle, buf, n, ctypes.byref(rc), ctypes.byref(self._overlapped_read))
+                    if not read_ok and win32.GetLastError() not in (win32.ERROR_SUCCESS, win32.ERROR_IO_PENDING):
                         raise SerialException("ReadFile failed (%r)" % ctypes.WinError())
-                    err = win32.WaitForSingleObject(self._overlapped_read.hEvent, win32.INFINITE)
+                    win32.GetOverlappedResult(self._port_handle, ctypes.byref(self._overlapped_read), ctypes.byref(rc), True)
                     read = buf.raw[:rc.value]
                 else:
                     read = bytes()
             else:
                 buf = ctypes.create_string_buffer(size)
                 rc = win32.DWORD()
-                err = win32.ReadFile(self._port_handle, buf, size, ctypes.byref(rc), ctypes.byref(self._overlapped_read))
-                if not err and win32.GetLastError() != win32.ERROR_IO_PENDING:
+                read_ok = win32.ReadFile(self._port_handle, buf, size, ctypes.byref(rc), ctypes.byref(self._overlapped_read))
+                if not read_ok and win32.GetLastError() not in (win32.ERROR_SUCCESS, win32.ERROR_IO_PENDING):
                     raise SerialException("ReadFile failed (%r)" % ctypes.WinError())
-                err = win32.GetOverlappedResult(self._port_handle, ctypes.byref(self._overlapped_read), ctypes.byref(rc), True)
+                win32.GetOverlappedResult(self._port_handle, ctypes.byref(self._overlapped_read), ctypes.byref(rc), True)
                 read = buf.raw[:rc.value]
         else:
             read = bytes()

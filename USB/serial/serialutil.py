@@ -1,12 +1,14 @@
 #! python
-# Python Serial Port Extension for Win32, Linux, BSD, Jython
-# see __init__.py
 #
+# Base class and support functions used by various backends.
+#
+# This file is part of pySerial. https://github.com/pyserial/pyserial
 # (C) 2001-2015 Chris Liechti <cliechti@gmx.net>
 #
 # SPDX-License-Identifier:    BSD-3-Clause
 
 import io
+import time
 
 # ``memoryview`` was introduced in Python 2.7 and ``bytes(some_memoryview)``
 # isn't returning the contents (very unfortunate). Therefore we need special
@@ -65,7 +67,7 @@ def to_bytes(seq):
         return bytes(b)
 
 # create control bytes
-XON  = to_bytes([17])
+XON = to_bytes([17])
 XOFF = to_bytes([19])
 
 CR = to_bytes([13])
@@ -109,8 +111,8 @@ class SerialBase(io.RawIOBase):
                  576000, 921600, 1000000, 1152000, 1500000, 2000000, 2500000,
                  3000000, 3500000, 4000000)
     BYTESIZES = (FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS)
-    PARITIES  = (PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE)
-    STOPBITS  = (STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO)
+    PARITIES = (PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE)
+    STOPBITS = (STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO)
 
     def __init__(self,
                  port=None,             # number of device, numbering starts at
@@ -139,7 +141,7 @@ class SerialBase(io.RawIOBase):
         self._port = None       # correct value is assigned below through properties
         self._baudrate = None   # correct value is assigned below through properties
         self._bytesize = None   # correct value is assigned below through properties
-        self._parity  = None    # correct value is assigned below through properties
+        self._parity = None     # correct value is assigned below through properties
         self._stopbits = None   # correct value is assigned below through properties
         self._timeout = None    # correct value is assigned below through properties
         self._write_timeout = None  # correct value is assigned below through properties
@@ -163,10 +165,16 @@ class SerialBase(io.RawIOBase):
         self.xonxoff = xonxoff
         self.rtscts = rtscts
         self.dsrdtr = dsrdtr
-        self.inter_character_timeout = inter_byte_timeout
+        self.inter_byte_timeout = inter_byte_timeout
 
         if port is not None:
             self.open()
+
+    #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
+
+    # to be implemented by subclasses:
+    # def open(self):
+    # def close(self):
 
     #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
 
@@ -280,7 +288,8 @@ class SerialBase(io.RawIOBase):
                 timeout + 1     # test if it's a number, will throw a TypeError if not...
             except TypeError:
                 raise ValueError("Not a valid timeout: %r" % (timeout,))
-            if timeout < 0: raise ValueError("Not a valid timeout: %r" % (timeout,))
+            if timeout < 0:
+                raise ValueError("Not a valid timeout: %r" % (timeout,))
         self._timeout = timeout
         if self.is_open:
             self._reconfigure_port()
@@ -461,7 +470,6 @@ class SerialBase(io.RawIOBase):
                 self.dsrdtr,
         )
 
-
     #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
     # compatibility with io library
 
@@ -568,6 +576,12 @@ class SerialBase(io.RawIOBase):
 
     #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
     # additional functionality
+
+    def read_all(self):
+        """\
+        Read all bytes currently available in the buffer of the OS.
+        """
+        return self.read(self.in_waiting)
 
     def read_until(self, terminator=LF, size=None):
         """\
