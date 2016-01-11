@@ -101,19 +101,20 @@ class PySerialModel(PySerialBaseModel):
     def __init__(self, obj):
         PySerialBaseModel.__init__(self)
         self.obj = obj
+        self.obj.Proxy.initSerial(self.obj)
         state = obj.Proxy.getMachineState(obj)
         state.serialOpen.connect(self.updateModel)
         state.serialClose.connect(self.updateModel)
         state.serialError.connect(self.updateModel)
         self.updateModel()
 
-    @QtCore.Slot()    
+    @QtCore.Slot()
     def updateModel(self):
         properties = self.getProperties()
         if self.rowCount() != len(properties):
             self.beginResetModel()
             self.properties = properties
-            self.endResetModel()        
+            self.endResetModel()
 
     def getProperties(self):
         # Need to try: on close document serialClose is emited... and obj already deleted

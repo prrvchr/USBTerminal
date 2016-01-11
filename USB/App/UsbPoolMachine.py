@@ -68,17 +68,17 @@ class PoolMachine(QtCore.QStateMachine):
         gui = __import__("Gui", globals(), locals(), [mod])
         getattr(gui, mod)._ViewProviderPool(obj.ViewObject)
         obj.Proxy.Machine.start(obj)
-        
+
     def start(self, obj):
-        self.obj = obj
-        self.obj.touch()
-        self.obj.Document.recompute()
-        self.setMachine()
+        obj.touch()
+        obj.Document.recompute()
+        self.setMachine(obj)
         self.run = True
         QtCore.QStateMachine.start(self)
-        
-    def setMachine(self):
-        self.Serials[0].obj = self.obj.Serials[0]
+
+    def setMachine(self, obj):
+        self.obj = obj
+        self.Serials[0].obj = obj.Serials[0]
         self.Serials[1].setParent(None)
 
     def halt(self):
@@ -88,7 +88,7 @@ class PoolMachine(QtCore.QStateMachine):
     def stop(self):
         self.close = True
         self.run = False
-        
+
     @QtCore.Slot(unicode)
     def serialWrite(self, data):
         self.getCtrlState().serialWrite.emit(data)
@@ -106,7 +106,7 @@ class PoolMachine(QtCore.QStateMachine):
     def startThread(self, thread):
         if not self.pool.maxThreadCount() > self.pool.activeThreadCount():
             self.pool.setMaxThreadCount(self.pool.activeThreadCount() +1)
-        self.pool.start(thread) 
+        self.pool.start(thread)
 
 
 class OnState(QtCore.QState):
@@ -124,9 +124,8 @@ class OffState(QtCore.QFinalState):
             self.machine().obj.State = b"{}".format(self.objectName())
             self.machine().obj.purgeTouched()
         except ReferenceError:
-            pass        
+            pass
         self.machine().finished.emit()
-        
 
 
 class ErrorState(QtCore.QFinalState):

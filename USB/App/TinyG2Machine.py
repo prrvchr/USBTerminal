@@ -29,13 +29,11 @@ from App import UsbPoolMachine, PySerialState
 
 class PoolMachine(UsbPoolMachine.PoolMachine):
 
-    def __init__(self):
-        UsbPoolMachine.PoolMachine.__init__(self)
-        
-    def setMachine(self):
-        self.Serials[0].obj = self.obj.Serials[0]
-        if self.obj.DualPort:
-            self.Serials[1].obj = self.obj.Serials[1]
+    def setMachine(self, obj):
+        self.obj = obj
+        self.Serials[0].obj = obj.Serials[0]
+        if obj.DualPort:
+            self.Serials[1].obj = obj.Serials[1]
             self.Serials[1].setParent(self.initialState())
         else:
             self.Serials[1].setParent(None)

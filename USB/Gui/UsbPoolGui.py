@@ -24,7 +24,7 @@
 """ Minimal Pool default ViewProvider Plugin object """
 from __future__ import unicode_literals
 
-import FreeCADGui, sys
+import FreeCADGui
 from Gui import Script, UsbPoolPanel, UsbPoolModel, PySerialGui
 
 
@@ -32,7 +32,7 @@ class _ViewProviderPool:
 
     def __init__(self, vobj): #mandatory
         self.Model = UsbPoolModel.PoolModel(vobj.Object)
-        self.Type = "Gui::UsbPool"                
+        self.Type = "Gui::UsbPool"
         for p in vobj.PropertiesList:
             if vobj.getGroupOfProperty(p) != "Base":
                 if p not in ["DualView"]:
@@ -54,7 +54,7 @@ class _ViewProviderPool:
 
     def attach(self, vobj):
         self.Model = UsbPoolModel.PoolModel(vobj.Object)
-        self.Type = "Gui::UsbPool"        
+        self.Type = "Gui::UsbPool"
         self.Object = vobj.Object
 
     def getIcon(self):
@@ -71,11 +71,11 @@ class _ViewProviderPool:
         return mode
 
     def onChanged(self, vobj, prop): #optional
-        pass          
+        pass
 
     def updateData(self, obj, prop): #optional
         # this is executed when a property of the APP OBJECT changes
-        if prop == "Serials":
+        if prop == "Serials" and obj.Proxy.Update:
             for o in obj.Serials:
                 if Script.getObjectViewType(o.ViewObject) is None:
                     PySerialGui._ViewProviderPort(o.ViewObject)
@@ -84,7 +84,7 @@ class _ViewProviderPool:
         # this is executed when the object is double-clicked in the tree
         if FreeCADGui.Control.activeDialog():
             return
-        panel = UsbPoolPanel.PoolTaskPanel(vobj.Object)            
+        panel = UsbPoolPanel.PoolTaskPanel(vobj.Object)
         FreeCADGui.Control.showDialog(panel)
 
     def unsetEdit(self, vobj, mode=0):

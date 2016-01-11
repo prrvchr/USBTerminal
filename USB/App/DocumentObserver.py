@@ -48,7 +48,7 @@ class DocumentObserver(QtCore.QObject):
         pass
 
     def slotDeletedObject(self, obj):
-        if Script.getObjectType(obj) == "App::PySerial":           
+        if Script.getObjectType(obj) == "App::PySerial":
             if obj.Proxy.hasParent(obj):
                 obj = obj.Proxy.getParent(obj)
         if Script.getObjectType(obj) == "App::UsbPool" and\
@@ -57,10 +57,7 @@ class DocumentObserver(QtCore.QObject):
             obj.Proxy.Machine.pool.waitForDone()
 
     def slotChangedObject(self, obj, prop):
-        typ = Script.getObjectType(obj)
-        if typ == "App::UsbPool":
-            if prop in ("Open", "Start", "Pause"):
-                self.changedUsbPool.emit(obj)
+        pass
 
     def slotUndoDocument(self, doc):
         pass

@@ -128,7 +128,6 @@ class TerminalDock(QtGui.QDockWidget):
             self.output.command.connect(state.serialWrite)
             terminal.layout().addWidget(self.output)
         self.setWidget(terminal)
-        #state.serialWrite.emit("$")
 
     @QtCore.Slot(unicode)
     def on_output(self, data):

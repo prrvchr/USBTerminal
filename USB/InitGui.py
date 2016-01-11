@@ -63,8 +63,7 @@ class UsbWorkbench(Workbench):
         # Add commands to menu and toolbar
         self.appendToolbar("Commands for Usb", commands)
         self.appendMenu([b"USB"], commands)
-        self.observer = DocumentObserver.DocumentObserver()
-        App.addDocumentObserver(self.observer)
+        App.addDocumentObserver(DocumentObserver.DocumentObserver())
         Log('Loading USB workbench... done\n')
 
     def GetClassName(self):
@@ -72,9 +71,9 @@ class UsbWorkbench(Workbench):
 
     def Activated(self):
         from Gui import PySerialPanel, UsbPoolPanel, TinyG2Panel
-        Gui.Control.addTaskWatcher([UsbPoolPanel.TaskWatcher(),
-                                    TinyG2Panel.TaskWatcher(),
-                                    PySerialPanel.TaskWatcher()])
+        Gui.Control.addTaskWatcher([PySerialPanel.TaskWatcher(),
+                                    UsbPoolPanel.TaskWatcher(),
+                                    TinyG2Panel.TaskWatcher()])
         Log("USB workbench activated\n")
 
     def Deactivated(self):

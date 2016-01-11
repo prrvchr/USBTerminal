@@ -31,9 +31,10 @@ from App import UsbPoolMachine, PySerial
 class Pool:
 
     def __init__(self, obj):
-        self.Type = "App::UsbPool"
-        self.Plugin = "UsbPool"
         self.Machine = UsbPoolMachine.PoolMachine()
+        self.Plugin = "UsbPool"
+        self.Update = False
+        self.Type = "App::UsbPool"
         for p in obj.PropertiesList:
             if obj.getGroupOfProperty(p) in ("Driver"):
                 if p not in ("Device"):            
@@ -79,10 +80,10 @@ class Pool:
         return None
 
     def __setstate__(self, state):
-        self.Type = "App::UsbPool"
-        self.Plugin = "UsbPool"
         self.Machine = UsbPoolMachine.PoolMachine()
-        self.Update = True
+        self.Plugin = "UsbPool"
+        self.Update = False
+        self.Type = "App::UsbPool"
         return None
 
     def setExtra(self, obj, extra):
@@ -122,7 +123,9 @@ class Pool:
         while len(obj.Serials) < int(obj.DualPort) + 1:
             o = obj.Document.addObject("App::FeaturePython", "PySerial")
             PySerial.PySerial(o)
+            self.Update = True
             obj.Serials += [o]
+            self.Update = False            
 
     def onChanged(self, obj, prop):
         pass

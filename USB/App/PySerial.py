@@ -33,9 +33,9 @@ class PySerial:
 
     def __init__(self, obj):
         self.Serial = serial.serial_for_url(None, do_not_open=True)
-        self.Type = "App::PySerial"
         """ Internal property for management of data update """
-        self.Update = ["Init"]
+        self.Update = []
+        self.Type = "App::PySerial"
         """ PySerial Base driving property """
         obj.addProperty("App::PropertyEnumeration",
                         "State",
@@ -120,9 +120,13 @@ class PySerial:
 
     def __setstate__(self, state):
         self.Serial = serial.serial_for_url(None, do_not_open=True)
+        self.Update = []
         self.Type = "App::PySerial"
-        self.Update = ["Init"]
         return None
+
+    def initSerial(self, obj):
+        p, s = self.getSettings(obj)
+        self.Serial = serial.serial_for_url(p, do_not_open=True, **s)
 
     def getState(self):
         return [b"Close", b"Init", b"Open", b"Start", b"Run", b"Error"]
@@ -169,11 +173,6 @@ class PySerial:
             self.Update = []
 
     def onChanged(self, obj, prop):
-        if prop == "Label":
-            if "Init" in self.Update:
-                p, s = self.getSettings(obj)
-                self.Serial = serial.serial_for_url(p, do_not_open=True, **s)
-                self.Update = []
         if prop == "Details":
             self.Update = ["Port"]
             self.refreshPorts(obj)

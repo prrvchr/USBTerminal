@@ -339,7 +339,7 @@ class PoolModel(PoolBaseModel):
     def onUnit(self, pos, index):
         if index != len(self._header) -1:
             return
-        menu = QtGui.QMenu(self)
+        menu = QtGui.QMenu()
         inches = menu.addAction("Unit (inches)")
         inches.triggered.connect(self.onInches)
         metric = menu.addAction("Unit (mm)")
@@ -409,3 +409,234 @@ class PoolModel(PoolBaseModel):
             return
         self.obj.ViewObject.Positions += list(self.positions)
         self.positions = []
+
+
+class PoolDelegate(QtGui.QStyledItemDelegate):
+
+    def __init__(self, parent):
+        QtGui.QStyledItemDelegate.__init__(self, parent)
+
+    def createEditor(self, parent, option, index):
+        node = index.internalPointer()
+        key = node.key
+        if key in ["m48e", "saf", "lim", "mfoe", "sl"]:
+            menus = ("disable", "enable")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "ej":
+            menus = ("text", "JSON")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "js":
+            menus = ("relaxed", "strict")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "gdi":
+            menus = ("G90", "G91")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "gun":
+            menus = ("G20 inches", "G21 mm")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "gpl":
+            menus = ("G17", "G18", "G19")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "gpa":
+            menus = ("G61", "G61.1", "G64")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key in ["cofp", "comp"]:
+            menus = ("low is ON", "high is ON")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key in ["unit"]:
+            menus = ("Inches", "Metric")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo        
+        elif key in ["coph", "spph"]:
+            menus = ("no", "pause_on_hold")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "tv":
+            menus = ("silent", "verbose")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "sv" and node.parent.key == "sv":
+            menus = ("off", "filtered", "verbose")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "spep":
+            menus = ("active_low", "active_high")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "spdp":
+            menus = ("CW_low", "CW_high")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "jv":
+            menus = ("silent", "footer", "messages", "configs", "linenum", "verbose")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "am":
+            menus = ("disabled", "standard", "inhibited", "radius")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "hi":
+            menus = ("disable homing", "x axis", "y axis", "z axis", "a axis", "b axis", "c axis")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "hd":
+            menus = ("search-to-negative", "search-to-positive")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "ma":
+            menus = ("X", "Y", "Z", "A", "B", "C")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "po":
+            menus = ("normal", "reverse")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "qv":
+            menus = ("off", "single", "triple")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "pm":
+            menus = ("disabled", "always on", "in cycle", "when moving")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i)
+            return combo
+        elif key == "gco":
+            menus = ("G54", "G55", "G56", "G57", "G58", "G59")
+            combo = QtGui.QComboBox(parent)
+            for i, m in enumerate(menus):
+                combo.addItem(m, i+1)
+            return combo
+        elif key == "mi":
+            menus = ("1", "2", "4", "8", "16", "32")
+            combo = QtGui.QComboBox(parent)
+            for i in menus:
+                combo.addItem(i, i)
+            return combo
+        elif key == "sv" and node.parent.key != "sv":
+            spin = QtGui.QSpinBox(parent)
+            spin.setRange(0, 50000)
+            return spin
+        elif key in ["fr", "vm", "jm", "csl", "csh", "wsh", "wsl", "frq"]:
+            spin = QtGui.QSpinBox(parent)
+            spin.setRange(0, 50000)
+            return spin
+        elif key == "jh":
+            spin = QtGui.QSpinBox(parent)
+            spin.setRange(0, 1000000)
+            return spin
+        elif key == "si":
+            spin = QtGui.QSpinBox(parent)
+            spin.setRange(100, 50000)
+            return spin
+        elif key == "spdw":
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 10000)
+            spin.setDecimals(1)
+            return spin
+        elif key in ["lv", "mt"]:
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 10000)
+            spin.setDecimals(2)
+            return spin
+        elif key == "ja":
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 1000)
+            spin.setDecimals(2)
+            return spin
+        elif key == "mfo":
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0.05, 2)
+            spin.setDecimals(3)
+            return spin
+        elif key in ["cph", "cpl", "pl", "wpl", "wph", "pof"]:
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 1)
+            spin.setDecimals(3)
+            return spin
+        elif key == "sa":
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(0, 10000)
+            spin.setDecimals(3)
+            return spin
+        elif key in ["lb", "zb", "tn", "tm", "x", "y", "z", "a", "b", "c"]:
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(-10000, 10000)
+            spin.setDecimals(3)
+            return spin
+        elif key in ["tr", "ct"]: #"jd"
+            spin = QtGui.QDoubleSpinBox(parent)
+            spin.setRange(-10000, 10000)
+            spin.setDecimals(4)
+            return spin
+        return QtGui.QStyledItemDelegate.createEditor(self, parent, option, index)
+
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QtGui.QComboBox):
+            editor.setCurrentIndex(editor.findData(index.model().data(index)))
+        elif isinstance(editor, QtGui.QSpinBox):
+            editor.setValue(int(index.model().data(index)))
+        elif isinstance(editor, QtGui.QDoubleSpinBox):
+            editor.setValue(float(index.model().data(index)))
+        elif isinstance(editor, QtGui.QLineEdit):
+            editor.setText(index.model().data(index).strip())
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QtGui.QComboBox):
+            model.setData(index, editor.itemData(editor.currentIndex()), QtCore.Qt.EditRole)
+        elif isinstance(editor, QtGui.QSpinBox):
+            model.setData(index, editor.value(), QtCore.Qt.EditRole)
+        elif isinstance(editor, QtGui.QDoubleSpinBox):
+            model.setData(index, editor.value(), QtCore.Qt.EditRole)
+        elif isinstance(editor, QtGui.QLineEdit):
+            model.setData(index, editor.text(), QtCore.Qt.EditRole)

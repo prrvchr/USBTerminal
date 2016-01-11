@@ -31,9 +31,10 @@ from  App import UsbPool, TinyG2Machine
 class Pool(UsbPool.Pool):
 
     def __init__(self, obj):
-        self.Type = "App::UsbPool"
-        self.Plugin = "TinyG2"
         self.Machine = TinyG2Machine.PoolMachine()
+        self.Plugin = "TinyG2"
+        self.Update = False
+        self.Type = "App::UsbPool"
         for p in obj.PropertiesList:
             if obj.getGroupOfProperty(p) in ("Driver"):
                 if p not in ("Buffers", "Device", "Id", "Message", "Timeout", "UploadFile"):
@@ -82,15 +83,15 @@ class Pool(UsbPool.Pool):
         obj.Proxy = self
 
     def __setstate__(self, state):
-        self.Type = "App::UsbPool"
-        self.Plugin = "TinyG2"
         self.Machine = TinyG2Machine.PoolMachine()
+        self.Plugin = "TinyG2"
+        self.Update = False
+        self.Type = "App::UsbPool"
         return None
 
     def setExtra(self, obj, extra):
         obj.Id = extra["id"]
         obj.Message = extra["msg"]
-    
 
 
 FreeCAD.Console.PrintLog("Loading TinyG2... done\n")
