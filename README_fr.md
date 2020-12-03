@@ -1,9 +1,20 @@
 **This [document](https://prrvchr.github.io/USBTerminal) in English.**
 
-# USBTerminal
-
 Un [atelier](https://wiki.freecadweb.org/Workbenches) [FreeCAD](https://www.freecadweb.org/?lang=fr) qui fournit un terminal sur le port USB et le téléchargement de fichiers via une connexion USB
 
+## Introduction:
+
+**USBTerminal** fait partie d'une [Suite](https://prrvchr.github.io/README_fr) d'extensions permettant de vous offrir des services inovants dans des logiciels libres.  
+
+Etant un logiciel libre je vous encourage:
+- A dupliquer son [code source](https://github.com/prrvchr/USBTerminal).
+- A apporter des modifications, des corrections, des ameliorations.
+- D'ouvrir une [issue](https://github.com/prrvchr/USBTerminal/issues/new) si nécessaire.
+
+Bref, à participer au developpement de cette extension.
+Car c'est ensemble que nous pouvons rendre le Logiciel Libre plus intelligent.
+
+## Historique:
 
 Voici quelques temps que j'essaye d'intégrer une connexion USB dans FreeCAD.
 Merci à la bibliothèque PySerial.
