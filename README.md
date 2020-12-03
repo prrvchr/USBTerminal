@@ -1,6 +1,8 @@
+**Ce [document](https://prrvchr.github.io/USBTerminal/README_fr) en français.**
+
 # USBTerminal
 
-FreeCAD Workbench that provides a terminal and file upload via USB connection
+A [FreeCAD](https://www.freecadweb.org) [Workbench](https://wiki.freecadweb.org/Workbenches) that provides a terminal on the USB port and file upload via USB connection.
 
 
 Here is some time I try to integrate a USB connection in FreeCAD.
@@ -16,3 +18,5 @@ A file upload function...
 And a position feedback draw in real time on screen...
 
 Besides, any help is welcome
+
+More information on this [forum thread](https://forum.freecadweb.org/viewtopic.php?f=15&t=12656)
