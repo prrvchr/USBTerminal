@@ -1,15 +1,15 @@
-**This [document](https://prrvchr.github.io/USBTerminal) in English.**
+**This [document][1] in English.**
 
-Un [atelier](https://wiki.freecadweb.org/Workbenches) [FreeCAD](https://www.freecadweb.org/?lang=fr) qui fournit un terminal sur le port USB et le téléchargement de fichiers via une connexion USB
+Un [atelier][2] [FreeCAD][3] qui fournit un terminal sur le port USB et le téléchargement de fichiers via une connexion USB
 
 ## Introduction:
 
-**USBTerminal** fait partie d'une [Suite](https://prrvchr.github.io/README_fr) d'extensions permettant de vous offrir des services inovants dans des logiciels libres.  
+**USBTerminal** fait partie d'une [Suite][4] d'extensions permettant de vous offrir des services inovants dans des logiciels libres.  
 
 Etant un logiciel libre je vous encourage:
-- A dupliquer son [code source](https://github.com/prrvchr/USBTerminal).
+- A dupliquer son [code source][5].
 - A apporter des modifications, des corrections, des ameliorations.
-- D'ouvrir une [issue](https://github.com/prrvchr/USBTerminal/issues/new) si nécessaire.
+- D'ouvrir une [issue][6] si nécessaire.
 
 Bref, à participer au developpement de cette extension.
 Car c'est ensemble que nous pouvons rendre le Logiciel Libre plus intelligent.
@@ -30,4 +30,12 @@ Et un relevé de position en temps réel à l'écran ...
 
 De plus, toute aide est la bienvenue
 
-Plus d'informations sur ce [fil de discussion](https://forum.freecadweb.org/viewtopic.php?f=15&t=12656) (en anglais)
+Plus d'informations sur ce [fil de discussion][7] (en anglais)
+
+[1]: <https://prrvchr.github.io/USBTerminal/>
+[2]: <https://wiki.freecadweb.org/Workbenches>
+[3]: <https://www.freecadweb.org/?lang=fr>
+[4]: <https://prrvchr.github.io/README_fr>
+[5]: <https://github.com/prrvchr/USBTerminal>
+[6]: <https://github.com/prrvchr/USBTerminal/issues/new>
+[7]: <https://forum.freecadweb.org/viewtopic.php?f=15&t=12656>
